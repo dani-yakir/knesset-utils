@@ -1,0 +1,2417 @@
+{
+  "KNS_Agenda": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Number",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ClassificationID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ClassificationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LeadingAgendaID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "SubTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SubTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "InitiatorPersonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GovRecommendationID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GovRecommendationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PresidentDecisionDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "PostopenmentReasonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PostopenmentReasonDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "RecommendCommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "MinisterPersonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Agenda",
+    "key": "Id"
+  },
+  "KNS_Bill": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "TypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "TypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "SubTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SubTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PrivateNumber",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Number",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PostponementReasonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PostponementReasonDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PublicationDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "PublicationSeriesID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PublicationSeriesDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PublicationSeriesFirstCallID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PublicationSeriesFirstCallDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "MagazineNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PageNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsContinuationBill",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "SummaryLaw",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Bill",
+    "key": "Id"
+  },
+  "KNS_BillHistoryInitiator": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PersonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsInitiator",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "StartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "EndDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ReasonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ReasonDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_BillHistoryInitiator",
+    "key": "Id"
+  },
+  "KNS_BillInitiator": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PersonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsInitiator",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "Ordinal",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_BillInitiator",
+    "key": "Id"
+  },
+  "KNS_BillName": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "NameHistoryTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "NameHistoryTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_BillName",
+    "key": "Id"
+  },
+  "KNS_BillSplit": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "MainBillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SplitBillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_BillSplit",
+    "key": "Id"
+  },
+  "KNS_BillUnion": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "MainBillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "UnionBillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_BillUnion",
+    "key": "Id"
+  },
+  "KNS_BroadcastCommitteSession": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BroadcastId",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BroadcastUrl",
+        "nullable": true,
+        "type": "Edm.String"
+      }
+    ],
+    "entity_type": "KNS_BroadcastCommitteSession",
+    "key": "Id"
+  },
+  "KNS_CmtSessionItem": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ItemID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeSessionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Ordinal",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ItemTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": false,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_CmtSessionItem",
+    "key": "Id"
+  },
+  "KNS_CmtSiteCode": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnsID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SiteId",
+        "nullable": true,
+        "type": "Edm.Int32"
+      }
+    ],
+    "entity_type": "KNS_CmtSiteCode",
+    "key": "Id"
+  },
+  "KNS_Committee": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "CategoryID",
+        "nullable": true,
+        "type": "Edm.Int16"
+      },
+      {
+        "name": "CategoryDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "Email",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "FinishDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "AdditionalTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AdditionalTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ParentCommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeParentName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsCurrent",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Committee",
+    "key": "Id"
+  },
+  "KNS_CommitteeSession": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Number",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "TypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "TypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StatusDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "Location",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "SessionUrl",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "BroadcastUrl",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "FinishDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "Note",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_CommitteeSession",
+    "key": "Id"
+  },
+  "KNS_DocumentAgenda": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AgendaID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GroupTypeID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "GroupTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ApplicationID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "ApplicationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FilePath",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_DocumentAgenda",
+    "key": "Id"
+  },
+  "KNS_DocumentBill": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BillID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GroupTypeID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "GroupTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ApplicationID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "ApplicationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FilePath",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_DocumentBill",
+    "key": "Id"
+  },
+  "KNS_DocumentCommitteeSession": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeSessionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GroupTypeID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "GroupTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "DocumentName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ApplicationID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "ApplicationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FilePath",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_DocumentCommitteeSession",
+    "key": "Id"
+  },
+  "KNS_DocumentIsraelLaw": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GroupTypeID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "GroupTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ApplicationID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "ApplicationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FilePath",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_DocumentIsraelLaw",
+    "key": "Id"
+  },
+  "KNS_DocumentPlenumSession": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PlenumSessionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GroupTypeID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "GroupTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ApplicationID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "ApplicationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FilePath",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_DocumentPlenumSession",
+    "key": "Id"
+  },
+  "KNS_DocumentSecondaryLaw": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecondaryLawId",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GroupTypeID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "GroupTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ApplicationID",
+        "nullable": true,
+        "type": "Edm.Byte"
+      },
+      {
+        "name": "ApplicationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FilePath",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_DocumentSecondaryLaw",
+    "key": "Id"
+  },
+  "KNS_Faction": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "FinishDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "IsCurrent",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Faction",
+    "key": "Id"
+  },
+  "KNS_GovMinistry": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsActive",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "CategoryID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CategoryName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "GovID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      }
+    ],
+    "entity_type": "KNS_GovMinistry",
+    "key": "Id"
+  },
+  "KNS_IsraelLaw": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsBasicLaw",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "IsFavoriteLaw",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "PublicationDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "LatestPublicationDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "IsBudgetLaw",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LawValidityID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawValidityDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ValidityStartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ValidityStartDateNotes",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ValidityFinishDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ValidityFinishDateNotes",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_IsraelLaw",
+    "key": "Id"
+  },
+  "KNS_IsraelLawBinding": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawReplacedID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_IsraelLawBinding",
+    "key": "Id"
+  },
+  "KNS_IsraelLawClassificiation": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ClassificiationID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ClassificiationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_IsraelLawClassificiation",
+    "key": "Id"
+  },
+  "KNS_IsraelLawLawCorrections": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawCorrectionID",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedBy",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": false,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_IsraelLawLawCorrections",
+    "key": "Id"
+  },
+  "KNS_IsraelLawMinistry": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "MinistryCategoryID",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "MinistryCategoryDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      }
+    ],
+    "entity_type": "KNS_IsraelLawMinistry",
+    "key": "Id"
+  },
+  "KNS_IsraelLawName": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_IsraelLawName",
+    "key": "Id"
+  },
+  "KNS_ItemType": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Desc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "TableName",
+        "nullable": true,
+        "type": "Edm.String"
+      }
+    ],
+    "entity_type": "KNS_ItemType",
+    "key": "Id"
+  },
+  "KNS_JointCommittee": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ParticipantCommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_JointCommittee",
+    "key": "Id"
+  },
+  "KNS_KnessetDates": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "Assembly",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Plenum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PlenumStart",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "PlenumFinish",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "IsCurrent",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_KnessetDates",
+    "key": "Id"
+  },
+  "KNS_LawBinding": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsraelLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ParentLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LawParentTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BindingType",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BindingTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PageNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "AmendmentType",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AmendmentTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "IsTempLegislation",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "IsSecondaryAmendment",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "CorrectionNumber",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ParagraphNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      }
+    ],
+    "entity_type": "KNS_LawBinding",
+    "key": "Id"
+  },
+  "KNS_LawCorrections": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BillID",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CorrectionTypeID",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CorrectionTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsKnessetInvolvement",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CorrectionStatusID",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CorrectionStatusDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "VoteDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "PublicationDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "PublicationSeriesID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PublicationSeriesDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "MagazineNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PageNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "CommencementDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "LastUpdatedBy",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": false,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "CreatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_LawCorrections",
+    "key": "Id"
+  },
+  "KNS_MkSiteCode": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnsID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SiteId",
+        "nullable": true,
+        "type": "Edm.Int32"
+      }
+    ],
+    "entity_type": "KNS_MkSiteCode",
+    "key": "Id"
+  },
+  "KNS_Person": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FirstName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "GenderID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GenderDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "Email",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsCurrent",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Person",
+    "key": "Id"
+  },
+  "KNS_PersonToPosition": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PersonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PositionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "FinishDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "GovMinistryID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GovMinistryName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "DutyDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FactionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "FactionName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "GovernmentNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsCurrent",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_PersonToPosition",
+    "key": "Id"
+  },
+  "KNS_PlenumSession": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Number",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StartDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "FinishDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "IsSpecialMeeting",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_PlenumSession",
+    "key": "Id"
+  },
+  "KNS_PlenumVote": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "VoteDateTime",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "SessionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ItemID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Ordinal",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "VoteMethodID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "VoteMethodDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "VoteStatusCode",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "VoteStatusDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "VoteTitle",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "VoteSubject",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsNoConfidenceInGov",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ForOptionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ForOptionDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "AgainstOptionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AgainstOptionDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      }
+    ],
+    "entity_type": "KNS_PlenumVote",
+    "key": "Id"
+  },
+  "KNS_PlenumVoteResult": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "MkId",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "VoteID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "VoteDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ResultCode",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ResultDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "LastName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "FirstName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "SessionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ItemID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      }
+    ],
+    "entity_type": "KNS_PlenumVoteResult",
+    "key": "Id"
+  },
+  "KNS_PlmSessionItem": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ItemID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PlenumSessionID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ItemTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ItemTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "Ordinal",
+        "nullable": true,
+        "type": "Edm.Int64"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsDiscussion",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": false,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_PlmSessionItem",
+    "key": "Id"
+  },
+  "KNS_Position": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Description",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "GenderID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GenderDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Position",
+    "key": "Id"
+  },
+  "KNS_Query": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Number",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "TypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "TypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PersonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "GovMinistryID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SubmitDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ReplyMinisterDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ReplyDatePlanned",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Query",
+    "key": "Id"
+  },
+  "KNS_SecLawAuthorizingLaw": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AuthorizingLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecondaryLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_SecLawAuthorizingLaw",
+    "key": "Id"
+  },
+  "KNS_SecLawRegulator": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecondaryLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "RegulatorTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "RegulatorTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "RegulatorID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "RegulatorDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_SecLawRegulator",
+    "key": "Id"
+  },
+  "KNS_SecToSecBinding": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecChildID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecChildTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecParentID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecParentTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecMainID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "SecMainTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BindingTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "BindingTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsTempLegislation",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "IsSecondaryAmendment",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "CorrectionNumber",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AmendmentTypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "AmendmentTypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "ParagraphNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_SecToSecBinding",
+    "key": "Id"
+  },
+  "KNS_SecondaryLaw": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetNum",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Name",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "CompletionCauseID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CompletionCauseDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PostponementReasonID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PostponementReasonDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "KnessetInvolvementID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "KnessetInvolvementDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "CommitteeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PublicationSeriesID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "PublicationSeriesDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "MagazineNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PageNumber",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "PublicationDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "MajorAuthorizingLawID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "CommitteeReceivedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "CommitteeApprovalDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "ApprovalDateWithoutDiscussion",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "IsAmmendingLawOriginal",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "ClassificationID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "ClassificationDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsEmergency",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "SecretaryReceivedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "PlenumApprovalDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      },
+      {
+        "name": "TypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "TypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "StatusID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "StatusName",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "IsCurrent",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_SecondaryLaw",
+    "key": "Id"
+  },
+  "KNS_Status": {
+    "columns": [
+      {
+        "name": "Id",
+        "nullable": false,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "Desc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "TypeID",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "TypeDesc",
+        "nullable": true,
+        "type": "Edm.String"
+      },
+      {
+        "name": "OrderTransition",
+        "nullable": true,
+        "type": "Edm.Int32"
+      },
+      {
+        "name": "IsActive",
+        "nullable": true,
+        "type": "Edm.Boolean"
+      },
+      {
+        "name": "LastUpdatedDate",
+        "nullable": true,
+        "type": "Edm.DateTimeOffset"
+      }
+    ],
+    "entity_type": "KNS_Status",
+    "key": "Id"
+  }
+}
