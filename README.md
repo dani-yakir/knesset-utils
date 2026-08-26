@@ -27,6 +27,14 @@ knesset-utils sync --table KNS_Faction --table KNS_Committee
 # Check per-table sync freshness
 knesset-utils status
 
+# Build a full seed mirror from scratch (schema-refresh + sync everything).
+# ~14h on an empty database (dominated by KNS_PlenumVoteResult's 1.95M rows);
+# re-running against an existing mirror is a cheap incremental catch-up instead.
+knesset-utils seed
+
+# Check foreign-key integrity in the local mirror (see docs/fk_integrity.md)
+knesset-utils validate-fks
+
 # Run the MCP server (stdio transport)
 python -m knesset_utils.server.mcp_server
 ```
@@ -71,6 +79,19 @@ python -m knesset_utils.server.mcp_server
   order of hours, not minutes — confirmed: the first full mirror of all 45 tables took **14h25m**
   end-to-end (3,362,911 rows), with `KNS_PlenumVoteResult` alone accounting for 7h. A subsequent
   incremental resync of all 45 tables (nothing changed upstream) took **21m13s** — roughly 40x
-  faster, confirming incremental sync is the right model for routine refreshes. This is meant to
-  be run as an infrequent, separate seed-build step (not part of every deploy) — the deployment
-  story for shipping/refreshing that seed artifact is still an open design question.
+  faster, confirming incremental sync is the right model for routine refreshes. `knesset-utils seed`
+  runs the full pipeline (schema-refresh + sync everything) as one command — meant to be run as an
+  infrequent, standalone job, not part of every deploy. The deployment story for shipping/refreshing
+  that seed artifact itself is still an open design question.
+- **Foreign keys are not reliable in the source data** — not a mirror bug, confirmed against the
+  live API directly. E.g. `KNS_PlenumVoteResult.MkId` has no corresponding `KNS_Person` row for
+  32.3% of vote rows (171 distinct MK ids), and the gap is current, not historical (orphaned votes
+  run through 2026-07-28). `KNS_DocumentAgenda.AgendaID` is worse — 62.7% of rows point at an
+  `AgendaID` absent from `KNS_Agenda`. Some other FK-shaped columns showing "orphans" turned out to
+  be sentinel values (`KNS_Bill.CommitteeID = -1` means "unassigned," not corruption) or an
+  incomplete lookup table, not real dangling references. Full methodology, the complete per-FK
+  breakdown, and which columns were deliberately left unvalidated (ambiguous/polymorphic-looking):
+  see [`docs/fk_integrity.md`](docs/fk_integrity.md). Run `knesset-utils validate-fks` to
+  reproduce. Nothing consumes or enforces this yet — it's a read-only report; anything doing a
+  `JOIN` against the mirror (including the stats layer) needs to know an inner join can silently
+  drop a meaningful fraction of rows.

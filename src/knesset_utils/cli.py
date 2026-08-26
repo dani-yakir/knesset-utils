@@ -8,7 +8,7 @@ from pathlib import Path
 
 import typer
 
-from knesset_utils.db import ddl, state as state_mod, sync as sync_mod
+from knesset_utils.db import ddl, fk_check, state as state_mod, sync as sync_mod
 from knesset_utils.odata.client import ODataClient
 from knesset_utils.schema import metadata as schema_metadata
 from knesset_utils.timeutil import format_duration
@@ -51,9 +51,7 @@ def _setup_logging(log_path: Path) -> logging.Logger:
     return logger
 
 
-@app.command("schema-refresh")
-def schema_refresh() -> None:
-    """Fetch live $metadata, diff against the committed snapshot, and write it."""
+def _refresh_schema() -> None:
     live_defs = schema_metadata.fetch_live_entity_defs()
     if schema_metadata.SNAPSHOT_PATH.exists():
         old_defs = schema_metadata.load_snapshot()
@@ -66,12 +64,13 @@ def schema_refresh() -> None:
     typer.echo(f"Snapshot written: {schema_metadata.SNAPSHOT_PATH} ({len(live_defs)} tables)")
 
 
-@app.command()
-def sync(
-    table: list[str] = typer.Option(None, "--table", help="Sync only these entity sets (repeatable). Default: all."),
-    db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
-    log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
-) -> None:
+@app.command("schema-refresh")
+def schema_refresh() -> None:
+    """Fetch live $metadata, diff against the committed snapshot, and write it."""
+    _refresh_schema()
+
+
+def _run_sync(table: list[str] | None, db_path: Path, log_path: Path) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror.
 
     A failure on one table (after the client's own retries are exhausted) is
@@ -119,6 +118,61 @@ def sync(
     if failed:
         logger.warning("Failed table(s): %s", failed)
     logger.info("=" * 78)
+
+
+@app.command()
+def sync(
+    table: list[str] = typer.Option(None, "--table", help="Sync only these entity sets (repeatable). Default: all."),
+    db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
+    log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
+) -> None:
+    """Sync entity sets from the live OData API into the SQLite mirror."""
+    _run_sync(table, db_path, log_path)
+
+
+@app.command()
+def seed(
+    db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
+    log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
+) -> None:
+    """Build a seed mirror from scratch: refresh the schema snapshot, then sync every table.
+
+    This is the full pipeline (schema-refresh + sync --all) as a single entrypoint.
+    On an empty/new database this is the ~14h initial crawl (dominated by
+    KNS_PlenumVoteResult); re-running it against an existing mirror is a cheap
+    incremental catch-up instead, since sync_table already routes each table
+    accordingly. Meant to be run as an infrequent, standalone job -- not part of
+    a normal deploy.
+    """
+    typer.echo("=== seed: refreshing schema snapshot ===")
+    _refresh_schema()
+    typer.echo("=== seed: syncing all tables ===")
+    _run_sync(None, db_path, log_path)
+
+
+@app.command("validate-fks")
+def validate_fks(db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path")) -> None:
+    """Check foreign-key integrity in the local mirror and print a summary.
+
+    See schema/foreign_keys.py for how the checked FK set was derived (naming
+    convention + a small manually-reviewed set) and docs/fk_integrity.md for
+    full prior results and the columns deliberately left unvalidated.
+    """
+    entities = schema_metadata.load_snapshot()
+    conn = _connect(db_path)
+    results = fk_check.validate_all(conn, entities)
+    conn.close()
+
+    clean = [r for r in results if r.is_clean]
+    dirty = [r for r in results if not r.is_clean]
+
+    typer.echo(f"Checked {len(results)} foreign key(s): {len(clean)} clean, {len(dirty)} with orphans")
+    for r in dirty:
+        typer.echo(
+            f"  {r.source_table}.{r.fk_column} -> {r.target_table}: "
+            f"{r.orphan_rows}/{r.source_rows_with_value} rows orphaned, "
+            f"{len(r.orphan_distinct_values)}+ distinct missing values (e.g. {r.orphan_distinct_values[:5]})"
+        )
 
 
 @app.command()
