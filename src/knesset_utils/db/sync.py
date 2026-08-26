@@ -19,17 +19,27 @@ over rather than causing missed rows -- this was verified against live data
 (a full crawl of a real table matched `$count=true` exactly, with zero
 duplicates and strictly ascending Ids across every page boundary) before
 this was written.
+
+A single table's sync failing (after the client's own retries are
+exhausted) does not need to be fatal to a multi-table run -- sync_table
+raises on failure and the caller decides whether to isolate that per table.
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 from knesset_utils.db import state as state_mod
 from knesset_utils.odata.client import ODataClient
 from knesset_utils.schema.metadata import EntityDef
+from knesset_utils.timeutil import format_duration
 
 PAGE_SIZE = 100
+CHECKPOINT_EVERY_PAGES = 25  # how often page-level progress is promoted from DEBUG to INFO
+
+logger = logging.getLogger(__name__)
 
 
 def _upsert_rows(conn: sqlite3.Connection, entity: EntityDef, rows: list[dict]) -> int:
@@ -49,12 +59,15 @@ def full_replace_sync(client: ODataClient, conn: sqlite3.Connection, entity: Ent
     conn.execute(f'DELETE FROM "{entity.entity_set}"')
     total = 0
     cursor = 0
+    page_num = 0
     while True:
+        page_num += 1
         data = client.get_entities(entity.entity_set, filter=f"{key} gt {cursor}", orderby=key, top=PAGE_SIZE)
         rows = data.get("value", [])
         total += _upsert_rows(conn, entity, rows)
         if rows:
             cursor = rows[-1][key]
+        logger.debug("%s: full-replace page %d, +%d rows, %d total", entity.entity_set, page_num, len(rows), total)
         if len(rows) < PAGE_SIZE:
             break
     conn.commit()
@@ -67,15 +80,22 @@ def keyset_full_sync(
     entity: EntityDef,
     resume_from: int = 0,
     initial_watermark: str | None = None,
+    total_hint: int | None = None,
+    already_synced: int = 0,
 ) -> tuple[int, int, str | None]:
     """Crawl an entity set in ascending Id order from resume_from, upserting every row.
-    Returns (rows_this_run, last_id_seen, max_last_updated_seen).
+    `already_synced` is rows synced in prior (interrupted) runs, used only to make
+    the logged percent-complete/ETA correct across a resume. Returns
+    (rows_this_run, last_id_seen, max_last_updated_seen).
     """
     key = entity.key
     cursor = resume_from
     total = 0
     max_last_updated = initial_watermark
+    start = time.monotonic()
+    page_num = 0
     while True:
+        page_num += 1
         data = client.get_entities(entity.entity_set, filter=f"{key} gt {cursor}", orderby=key, top=PAGE_SIZE)
         rows = data.get("value", [])
         total += _upsert_rows(conn, entity, rows)
@@ -96,7 +116,30 @@ def keyset_full_sync(
                     rows_synced=total,
                 ),
             )
-        if len(rows) < PAGE_SIZE:
+
+        elapsed = time.monotonic() - start
+        rate = total / elapsed if elapsed > 0 else 0.0  # rows/s this run only (ETA denominator)
+        is_last_page = len(rows) < PAGE_SIZE
+        is_checkpoint = page_num == 1 or page_num % CHECKPOINT_EVERY_PAGES == 0 or is_last_page
+
+        if total_hint:
+            overall_done = already_synced + total
+            pct = min(100.0, 100.0 * overall_done / total_hint)
+            remaining = max(total_hint - overall_done, 0)
+            eta = format_duration(remaining / rate) if rate > 0 else "?"
+            msg = (
+                f"{entity.entity_set}: page {page_num} +{len(rows)} rows | "
+                f"{overall_done}/{total_hint} ({pct:.1f}%) | cursor={cursor} | "
+                f"{rate:.1f} rows/s | elapsed {format_duration(elapsed)} | eta {eta}"
+            )
+        else:
+            msg = (
+                f"{entity.entity_set}: page {page_num} +{len(rows)} rows | {total} total | "
+                f"cursor={cursor} | {rate:.1f} rows/s | elapsed {format_duration(elapsed)}"
+            )
+        logger.info(msg) if is_checkpoint else logger.debug(msg)
+
+        if is_last_page:
             break
     return total, cursor, max_last_updated
 
@@ -109,7 +152,9 @@ def incremental_sync(
     """
     total = 0
     cursor_lud = watermark
+    page_num = 0
     while True:
+        page_num += 1
         data = client.get_entities(
             entity.entity_set,
             filter=f"LastUpdatedDate gt {cursor_lud}",
@@ -120,6 +165,7 @@ def incremental_sync(
         total += _upsert_rows(conn, entity, rows)
         if rows:
             cursor_lud = rows[-1]["LastUpdatedDate"]
+        logger.debug("%s: incremental page %d, +%d rows, %d total", entity.entity_set, page_num, len(rows), total)
         if len(rows) < PAGE_SIZE:
             break
     conn.commit()
@@ -128,9 +174,13 @@ def incremental_sync(
 
 def sync_table(client: ODataClient, conn: sqlite3.Connection, entity: EntityDef) -> dict:
     now = datetime.now(timezone.utc).isoformat()
+    t0 = time.monotonic()
 
     if not entity.has_last_updated:
+        logger.info("=== %s: full-replace sync starting ===", entity.entity_set)
         rows = full_replace_sync(client, conn, entity)
+        elapsed = format_duration(time.monotonic() - t0)
+        logger.info("=== %s: full-replace done, %d rows, %s ===", entity.entity_set, rows, elapsed)
         state_mod.save_state(
             conn,
             state_mod.SyncState(table_name=entity.entity_set, full_sync_complete=True, last_synced_at=now, rows_synced=rows),
@@ -140,8 +190,24 @@ def sync_table(client: ODataClient, conn: sqlite3.Connection, entity: EntityDef)
     st = state_mod.get_state(conn, entity.entity_set)
 
     if not st.full_sync_complete:
+        total_hint = None
+        try:
+            total_hint = client.get_count(entity.entity_set)
+        except Exception as exc:
+            logger.warning("%s: could not fetch live $count for ETA (%s) -- continuing without one", entity.entity_set, exc)
+
+        logger.info(
+            "=== %s: initial keyset crawl starting (resume_from=%d, already_synced=%d, live_count=%s) ===",
+            entity.entity_set, st.last_id_seen, st.rows_synced, total_hint if total_hint is not None else "unknown",
+        )
         rows, last_id, watermark = keyset_full_sync(
-            client, conn, entity, resume_from=st.last_id_seen, initial_watermark=st.max_last_updated_seen
+            client, conn, entity, resume_from=st.last_id_seen, initial_watermark=st.max_last_updated_seen,
+            total_hint=total_hint, already_synced=st.rows_synced,
+        )
+        elapsed = format_duration(time.monotonic() - t0)
+        logger.info(
+            "=== %s: initial crawl done, +%d rows this run (%d total), %s ===",
+            entity.entity_set, rows, st.rows_synced + rows, elapsed,
         )
         state_mod.save_state(
             conn,
@@ -157,7 +223,10 @@ def sync_table(client: ODataClient, conn: sqlite3.Connection, entity: EntityDef)
         return {"table": entity.entity_set, "mode": "initial-keyset-crawl", "rows": rows}
 
     watermark = st.max_last_updated_seen or "1900-01-01T00:00:00Z"
+    logger.info("=== %s: incremental sync starting (watermark=%s) ===", entity.entity_set, watermark)
     rows, new_watermark = incremental_sync(client, conn, entity, watermark)
+    elapsed = format_duration(time.monotonic() - t0)
+    logger.info("=== %s: incremental done, +%d rows, %s ===", entity.entity_set, rows, elapsed)
     state_mod.save_state(
         conn,
         state_mod.SyncState(

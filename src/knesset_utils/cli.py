@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
+import sys
+import time
 from pathlib import Path
 
 import typer
@@ -8,10 +11,12 @@ import typer
 from knesset_utils.db import ddl, state as state_mod, sync as sync_mod
 from knesset_utils.odata.client import ODataClient
 from knesset_utils.schema import metadata as schema_metadata
+from knesset_utils.timeutil import format_duration
 
 app = typer.Typer(help="Mirror the Knesset OData API into SQLite and query it.")
 
 DEFAULT_DB_PATH = Path("data/knesset_mirror.sqlite")
+DEFAULT_LOG_PATH = Path("data/sync.log")
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
@@ -19,6 +24,31 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
     state_mod.ensure_state_table(conn)
     return conn
+
+
+def _setup_logging(log_path: Path) -> logging.Logger:
+    """File gets full per-page detail (DEBUG); console gets table start/end
+    banners and periodic checkpoints only (INFO), so a multi-hour run doesn't
+    flood stdout while the log file keeps a complete audit trail.
+    """
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger("knesset_utils")
+    logger.setLevel(logging.DEBUG)
+    logger.handlers.clear()
+
+    fmt = logging.Formatter("%(asctime)s %(levelname)-5s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+
+    fh = logging.FileHandler(log_path, encoding="utf-8")
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(fmt)
+    logger.addHandler(fh)
+
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setLevel(logging.INFO)
+    sh.setFormatter(fmt)
+    logger.addHandler(sh)
+
+    return logger
 
 
 @app.command("schema-refresh")
@@ -40,25 +70,55 @@ def schema_refresh() -> None:
 def sync(
     table: list[str] = typer.Option(None, "--table", help="Sync only these entity sets (repeatable). Default: all."),
     db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
+    log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
 ) -> None:
-    """Sync entity sets from the live OData API into the SQLite mirror."""
+    """Sync entity sets from the live OData API into the SQLite mirror.
+
+    A failure on one table (after the client's own retries are exhausted) is
+    logged and skipped rather than aborting the whole run -- this matters
+    for an all-tables run that can take hours.
+    """
+    logger = _setup_logging(log_path)
+
     entities = schema_metadata.load_snapshot()
     targets = table or sorted(entities.keys())
     unknown = set(targets) - set(entities.keys())
     if unknown:
-        typer.echo(f"Unknown table(s): {sorted(unknown)}", err=True)
+        logger.error("Unknown table(s): %s", sorted(unknown))
         raise typer.Exit(1)
 
     conn = _connect(db_path)
     ddl.create_all_tables(conn, {name: entities[name] for name in targets})
 
+    logger.info("=" * 78)
+    logger.info("Sync run starting: %d table(s) -> %s", len(targets), db_path)
+    logger.info("=" * 78)
+    run_start = time.monotonic()
+    succeeded: list[tuple[str, dict]] = []
+    failed: list[str] = []
+
     with ODataClient() as client:
-        for name in targets:
+        for i, name in enumerate(targets, 1):
             entity = entities[name]
-            typer.echo(f"Syncing {name} ...")
-            result = sync_mod.sync_table(client, conn, entity)
-            typer.echo(f"  {result['mode']}: {result['rows']} rows")
+            logger.info("[%d/%d] %s", i, len(targets), name)
+            try:
+                result = sync_mod.sync_table(client, conn, entity)
+                succeeded.append((name, result))
+            except Exception:
+                logger.exception("FAILED syncing %s -- skipping, continuing with remaining tables", name)
+                failed.append(name)
     conn.close()
+
+    elapsed = format_duration(time.monotonic() - run_start)
+    total_rows = sum(r["rows"] for _, r in succeeded)
+    logger.info("=" * 78)
+    logger.info(
+        "Sync run complete: %d/%d tables succeeded, %d rows synced this run, elapsed %s",
+        len(succeeded), len(targets), total_rows, elapsed,
+    )
+    if failed:
+        logger.warning("Failed table(s): %s", failed)
+    logger.info("=" * 78)
 
 
 @app.command()

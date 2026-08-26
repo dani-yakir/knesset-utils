@@ -4,6 +4,8 @@ __pycache__/
 venv/
 data/*.sqlite
 data/*.sqlite-*
+data/*.log
+data/*.json
 *.egg-info/
 build/
 dist/
