@@ -1,11 +1,10 @@
 {
   "mcpServers": {
     "knesset": {
-      "command": "python",
-      "args": ["-m", "knesset_utils.server.mcp_server"],
-      "env": {
-        "MCP_TRANSPORT": "stdio",
-        "MCP_DB_PATH": "data/knesset_mirror.sqlite"
+      "type": "http",
+      "url": "https://knesset-mcp.onrender.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${KNESSET_MCP_TOKEN}"
       }
     }
   }

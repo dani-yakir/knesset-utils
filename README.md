@@ -67,6 +67,34 @@ behaves exactly as before: stdio, `data/knesset_mirror.sqlite`, no auth.
 
 `GET /healthz` is unauthenticated and reports `db_exists` + `last_synced_at`.
 
+### Connecting a client
+
+**Deployed server (default).** The committed `.mcp.json` points at the Render deployment over
+Streamable HTTP and reads the bearer token from `$KNESSET_MCP_TOKEN` (so no secret is
+committed). Export it before launching Claude Code:
+
+```
+export KNESSET_MCP_TOKEN=<the MCP_AUTH_TOKEN value from Render>   # PowerShell: $env:KNESSET_MCP_TOKEN=...
+```
+
+Or register it explicitly for any MCP client:
+
+```
+claude mcp add --transport http knesset https://knesset-mcp.onrender.com/mcp \
+  --header "Authorization: Bearer $KNESSET_MCP_TOKEN"
+```
+
+**Local server (for hacking on the tools).** Run it against your local mirror over stdio and
+add it at local scope so it does not clash with the committed remote entry:
+
+```
+claude mcp add --scope local knesset-local -- \
+  .venv/Scripts/python -m knesset_utils.server.mcp_server
+```
+
+(`.venv/bin/python` on macOS/Linux. A bare `python` picks up the system interpreter, which
+does not have the package installed.)
+
 ### Seeding the first release (one-time, local)
 
 The cloud never runs the ~14h full seed. Build it locally, then publish the seed once:
