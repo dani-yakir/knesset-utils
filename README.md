@@ -1,4 +1,4 @@
-# knesset_utils
+# knesset-utils
 
 Mirrors the Israeli Knesset's v4 OData API (`https://knesset.gov.il/OdataV4/ParliamentInfo/`)
 into a local SQLite database, and serves statistical analyses over that mirror via an MCP server.

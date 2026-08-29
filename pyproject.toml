@@ -1,5 +1,5 @@
 [project]
-name = "knesset_utils"
+name = "knesset-utils"
 version = "0.1.0"
 description = "SQLite mirror of the Knesset OData API, plus an MCP server for statistical analysis over the mirror."
 requires-python = ">=3.11"
