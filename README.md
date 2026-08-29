@@ -39,6 +39,53 @@ knesset-utils validate-fks
 python -m knesset_utils.server.mcp_server
 ```
 
+## Deployment
+
+The MCP server is deployed as a Docker web service on **Render** (`render.yaml`); the mirror is
+refreshed by a scheduled **GitHub Actions** workflow (`.github/workflows/sync.yml`), not a
+long-running server. The two are decoupled through **GitHub Releases**: a moving `latest`
+release holds the current `knesset_mirror.sqlite.zst`, and the server downloads it on boot and
+re-checks every 6h. Because `db/sync.py` checkpoints progress into the `_sync_state` table
+*inside* the sqlite file, the release asset is simultaneously the distributed artifact and the
+sync state store.
+
+### Server configuration (env vars)
+
+The server reads everything from the environment (see `server/config.py`). With no env set it
+behaves exactly as before: stdio, `data/knesset_mirror.sqlite`, no auth.
+
+| Var | Purpose |
+|---|---|
+| `MCP_TRANSPORT` | `stdio` (default) or `streamable-http` |
+| `MCP_HOST` / `PORT` | HTTP bind; `PORT` (Render's convention) wins over `MCP_PORT` |
+| `MCP_DB_PATH` | mirror location (`/data/knesset_mirror.sqlite` in the container) |
+| `MCP_AUTH_TOKEN` | shared secret required as `Authorization: Bearer <token>` on `/mcp` |
+| `MCP_PUBLIC_URL` | public base URL (used by `MCP_NATIVE_AUTH`, the opt-in OAuth-style path) |
+| `MIRROR_REPO` | `owner/repo` holding the mirror releases; unset disables all fetching |
+| `MIRROR_ZSTD_LONG` | must equal `zstd --long=NN` in `sync.yml` (currently `27`) |
+| `MIRROR_REFRESH_INTERVAL_SECONDS` | background re-check cadence; `0` disables |
+
+`GET /healthz` is unauthenticated and reports `db_exists` + `last_synced_at`.
+
+### Seeding the first release (one-time, local)
+
+The cloud never runs the ~14h full seed. Build it locally, then publish the seed once:
+
+```
+knesset-utils seed                       # or reuse an existing data/knesset_mirror.sqlite
+zstd -19 --long=27 -T0 data/knesset_mirror.sqlite -o knesset_mirror.sqlite.zst
+gh release create latest        knesset_mirror.sqlite.zst --title "latest mirror"
+gh release create mirror-$(date -u +%F) knesset_mirror.sqlite.zst --title "mirror seed"
+```
+
+### Schema drift is not handled in the cloud (by design)
+
+`sync.yml` never runs `schema-refresh`, so new/renamed upstream columns are ignored until
+someone runs `knesset-utils schema-refresh` locally, commits the updated
+`src/knesset_utils/schema/snapshot.json`, **re-seeds locally**, and uploads a fresh `latest`.
+Adding a table is therefore a deliberate PR + manual re-seed, not something a nightly run can
+do silently.
+
 ## Design notes
 
 - Every v4 entity set uses a single numeric `Id` key. Sync uses **keyset pagination**
