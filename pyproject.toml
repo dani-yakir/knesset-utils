@@ -35,3 +35,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# The committed schema snapshot is loaded at runtime by schema/metadata.py
+# (Path(__file__).parent / "snapshot.json"); a non-editable install (the Docker
+# image) must ship it.
+knesset_utils = ["schema/snapshot.json"]
