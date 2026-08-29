@@ -1,0 +1,6 @@
+# Keep line endings LF in the repo regardless of the checkout platform.
+# Matters for the Dockerfile, shell in CI workflows, and cross-platform diffs.
+* text=auto eol=lf
+*.png binary
+*.sqlite binary
+*.zst binary

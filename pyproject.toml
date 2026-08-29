@@ -5,7 +5,7 @@ description = "SQLite mirror of the Knesset OData API, plus an MCP server for st
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.27",
-    "mcp>=1.0",
+    "mcp>=2.1,<3",
     "pandas>=2.2",
     "scipy>=1.13",
     "typer>=0.12",
@@ -15,9 +15,19 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+# Extra deps needed only to run the MCP server over HTTP (Render/Docker).
+# Kept out of the base install so `pip install -e ".[dev]"` for local stdio
+# work stays minimal. uvicorn/starlette are already transitive via mcp;
+# pinned here so the container image has them explicitly.
+server = [
+    "zstandard>=0.22",
+    "uvicorn>=0.31",
+    "starlette>=1.6",
+]
 
 [project.scripts]
 knesset-utils = "knesset_utils.cli:app"
+knesset-mcp = "knesset_utils.server.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -25,3 +35,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# The committed schema snapshot is loaded at runtime by schema/metadata.py
+# (Path(__file__).parent / "snapshot.json"); a non-editable install (the Docker
+# image) must ship it.
+knesset_utils = ["schema/snapshot.json"]

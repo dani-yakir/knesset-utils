@@ -1,0 +1,17 @@
+# Never ship the local venv, git history, or the ~730 MB mirror into the image.
+.venv/
+venv/
+.git/
+.github/
+data/
+docs/
+tests/
+**/__pycache__/
+*.pyc
+*.log
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mcp.json
+render.yaml

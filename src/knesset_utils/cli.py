@@ -70,12 +70,22 @@ def schema_refresh() -> None:
     _refresh_schema()
 
 
-def _run_sync(table: list[str] | None, db_path: Path, log_path: Path) -> None:
+def _run_sync(
+    table: list[str] | None,
+    db_path: Path,
+    log_path: Path,
+    *,
+    fail_on_any: bool = False,
+) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror.
 
     A failure on one table (after the client's own retries are exhausted) is
     logged and skipped rather than aborting the whole run -- this matters
     for an all-tables run that can take hours.
+
+    Exit code: 0 normally. Non-zero if *every* table failed, or if any table
+    failed and `fail_on_any` is set (used by CI so a partial regression is
+    visible even though the partially-synced mirror is still published).
     """
     logger = _setup_logging(log_path)
 
@@ -119,15 +129,23 @@ def _run_sync(table: list[str] | None, db_path: Path, log_path: Path) -> None:
         logger.warning("Failed table(s): %s", failed)
     logger.info("=" * 78)
 
+    if failed and (fail_on_any or not succeeded):
+        raise typer.Exit(1)
+
 
 @app.command()
 def sync(
     table: list[str] = typer.Option(None, "--table", help="Sync only these entity sets (repeatable). Default: all."),
     db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
     log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
+    fail_on_any: bool = typer.Option(
+        False,
+        "--fail-on-any/--no-fail-on-any",
+        help="Exit non-zero if ANY table fails (for CI). Default: exit non-zero only if all fail.",
+    ),
 ) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror."""
-    _run_sync(table, db_path, log_path)
+    _run_sync(table, db_path, log_path, fail_on_any=fail_on_any)
 
 
 @app.command()

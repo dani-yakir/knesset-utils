@@ -6,6 +6,7 @@ data/*.sqlite
 data/*.sqlite-*
 data/*.log
 data/*.json
+data/*.release
 *.egg-info/
 build/
 dist/
