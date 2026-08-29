@@ -33,7 +33,7 @@ services:
       - key: MCP_PUBLIC_URL
         value: https://knesset-mcp.onrender.com
       - key: MIRROR_REPO
-        value: dani-yakir/knesset_utils
+        value: dani-yakir/knesset-utils
       - key: MIRROR_RELEASE_TAG
         value: latest
       - key: MIRROR_ASSET
