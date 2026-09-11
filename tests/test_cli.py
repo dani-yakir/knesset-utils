@@ -6,6 +6,7 @@ import typer
 from knesset_utils import cli
 from knesset_utils.db import ddl
 from knesset_utils.schema.metadata import ColumnDef, EntityDef
+from tests.fake_odata import FakeOData
 
 
 @pytest.fixture
@@ -17,6 +18,9 @@ def two_tables(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.schema_metadata, "load_snapshot", lambda: entities)
 
     class _NoopClient:
+        def __init__(self, **kwargs):
+            pass
+
         def __enter__(self):
             return self
 
@@ -30,13 +34,16 @@ def two_tables(monkeypatch, tmp_path):
 def _run(monkeypatch, tmp_path, results, *, fail_on_any):
     """results: dict table_name -> "ok" | Exception to raise."""
 
-    def fake_sync_table(client, conn, entity):
-        outcome = results[entity.entity_set]
-        if isinstance(outcome, Exception):
-            raise outcome
-        return {"table": entity.entity_set, "mode": "test", "rows": 1}
+    def fake_sync_tables(client, conn, entities, *, workers, gate):
+        succeeded, failed = [], []
+        for entity in entities:
+            if isinstance(results[entity.entity_set], Exception):
+                failed.append(entity.entity_set)
+            else:
+                succeeded.append({"table": entity.entity_set, "mode": "test", "rows": 1})
+        return succeeded, failed
 
-    monkeypatch.setattr(cli.sync_mod, "sync_table", fake_sync_table)
+    monkeypatch.setattr(cli.sync_mod, "sync_tables", fake_sync_tables)
     cli._run_sync(
         None,
         tmp_path / "m.sqlite",
@@ -79,9 +86,9 @@ def test_created_db_is_a_valid_sqlite_file(monkeypatch, two_tables):
     assert {"KNS_A", "KNS_B", "_sync_state"} <= names
 
 
-def test_run_sync_rolls_back_a_table_that_fails_mid_full_replace(monkeypatch, two_tables):
-    """A full-replace that dies after its DELETE must keep its old rows, not have
-    the DELETE + partial crawl committed by the next table's sync."""
+def test_run_sync_keeps_old_rows_of_a_full_replace_that_fails_mid_crawl(monkeypatch, two_tables):
+    """End to end through the CLI with 4 workers: the failed table keeps its
+    previous rows (no truncated table published), the other one still syncs."""
     db = two_tables / "m.sqlite"
     conn = sqlite3.connect(db)
     ddl.create_all_tables(conn, cli.schema_metadata.load_snapshot())
@@ -89,22 +96,10 @@ def test_run_sync_rolls_back_a_table_that_fails_mid_full_replace(monkeypatch, tw
     conn.commit()
     conn.close()
 
-    class FlakyClient:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return False
-
-        def get_entities(self, entity_set, filter=None, orderby=None, top=None, count=False):
-            if entity_set == "KNS_A":
-                if filter == "Id gt 0":
-                    return {"value": [{"Id": i} for i in range(1, 101)]}  # full page -> crawl continues
-                raise RuntimeError("481 mid-crawl")
-            return {"value": [{"Id": 1}]}
-
-    monkeypatch.setattr(cli, "ODataClient", FlakyClient)
-    cli._run_sync(None, db, two_tables / "sync.log", fail_on_any=False)
+    fake = FakeOData({"KNS_A": [{"Id": i} for i in range(1, 301)], "KNS_B": [{"Id": 1}]})
+    fake.fail = lambda table, flt: table == "KNS_A" and (flt or "").startswith("Id gt 100 ")
+    monkeypatch.setattr(cli, "ODataClient", lambda **kwargs: fake)
+    cli._run_sync(None, db, two_tables / "sync.log", fail_on_any=False, workers=4)
 
     conn = sqlite3.connect(db)
     try:

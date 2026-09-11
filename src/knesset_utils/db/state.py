@@ -1,5 +1,8 @@
 """Per-table sync progress, so a full crawl can resume after interruption and
 incremental syncs know their watermark.
+
+_sync_chunks holds the unfinished Id-range chunks of in-progress crawls (see
+db/sync.py); a chunk's row is deleted once it has been fully fetched.
 """
 from __future__ import annotations
 
@@ -17,6 +20,16 @@ CREATE TABLE IF NOT EXISTS _sync_state (
 )
 """
 
+SYNC_CHUNKS_DDL = """
+CREATE TABLE IF NOT EXISTS _sync_chunks (
+    table_name TEXT NOT NULL,
+    lo INTEGER NOT NULL,      -- exclusive lower bound the chunk was planned at (its identity)
+    hi INTEGER,               -- inclusive upper bound; NULL = open-ended tail
+    cursor INTEGER NOT NULL,  -- last Id written; where the chunk resumes
+    PRIMARY KEY (table_name, lo)
+)
+"""
+
 
 @dataclass
 class SyncState:
@@ -30,6 +43,7 @@ class SyncState:
 
 def ensure_state_table(conn: sqlite3.Connection) -> None:
     conn.execute(SYNC_STATE_DDL)
+    conn.execute(SYNC_CHUNKS_DDL)
     conn.commit()
 
 

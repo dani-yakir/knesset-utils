@@ -57,7 +57,9 @@ jobs:
       - name: Incremental sync
         id: sync
         continue-on-error: true
-        run: knesset-utils sync --db "$DB" --log sync.log --fail-on-any
+        # The Knesset firewall blocks runner (Azure) IPs for ~2 min when they
+        # send too fast; pace well under that. A block pauses and resumes slower.
+        run: knesset-utils sync --db "$DB" --log sync.log --fail-on-any --workers 4 --max-rate 2
 
       - name: FK integrity report (non-blocking)
         continue-on-error: true

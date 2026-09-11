@@ -3,16 +3,21 @@
 Retries on 5xx and transport errors (a transient 500 was observed mid-crawl
 during pre-build validation, on an otherwise-healthy small table -- this is
 not hypothetical), but not on 4xx, which are real request errors -- except
-429 and 481, which are throttling. The Knesset edge answers sustained bursts
-from GitHub-hosted runners with a non-standard 481 partway through a run
-(the identical request succeeds moments later), so those get their own,
-longer exponential backoff.
+429 and 481, which are throttling: the Knesset edge's firewall answers
+"access denied" (481) once an IP sends too many requests in a short window.
+Throttled requests have their own retry budget (`throttle_retries`). With an
+`on_throttle` hook (db/sync.py's RequestGate) the hook decides when to retry
+-- it pauses every request until the block lifts; without one, the client
+backs off exponentially on its own.
+
+Safe to share across threads (httpx.Client is); size `max_connections` to the
+number of concurrent callers.
 """
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -34,12 +39,21 @@ class ODataClient:
         retries: int = DEFAULT_RETRIES,
         backoff: float = DEFAULT_BACKOFF,
         throttle_backoff: float = DEFAULT_THROTTLE_BACKOFF,
+        max_connections: int = 10,
+        on_throttle: Callable[[], None] | None = None,
+        throttle_retries: int = DEFAULT_RETRIES - 1,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.retries = retries
         self.backoff = backoff
         self.throttle_backoff = throttle_backoff
-        self._client = httpx.Client(timeout=timeout, headers={"Accept": "application/json"})
+        self.throttle_retries = throttle_retries
+        self.on_throttle = on_throttle
+        self._client = httpx.Client(
+            timeout=timeout,
+            headers={"Accept": "application/json"},
+            limits=httpx.Limits(max_connections=max_connections, max_keepalive_connections=max_connections),
+        )
 
     def close(self) -> None:
         self._client.close()
@@ -63,6 +77,7 @@ class ODataClient:
         orderby: str | None = None,
         top: int | None = None,
         count: bool = False,
+        select: str | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {}
         if filter:
@@ -73,6 +88,8 @@ class ODataClient:
             params["$top"] = top
         if count:
             params["$count"] = "true"
+        if select:
+            params["$select"] = select
         return self._get_json(f"{self.base_url}/{entity_set}", params=params)
 
     def get_count(self, entity_set: str) -> int:
@@ -81,27 +98,31 @@ class ODataClient:
 
     def _get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         last_err: Exception | str | None = None
-        for attempt in range(self.retries):
+        attempt = throttles = 0
+        while attempt < self.retries:
             try:
                 resp = self._client.get(url, params=params)
             except httpx.TransportError as exc:
                 last_err = exc
-                time.sleep(self.backoff * (attempt + 1))
+                attempt += 1
+                time.sleep(self.backoff * attempt)
                 continue
-            if attempt < self.retries - 1:
-                if resp.status_code in THROTTLE_STATUSES:
-                    delay = self.throttle_backoff * 2**attempt
-                    logger.warning(
-                        "http %d (throttled) on %s -- retry %d/%d in %.0fs; body: %r",
-                        resp.status_code, resp.url, attempt + 1, self.retries - 1, delay, resp.text[:200],
-                    )
-                    last_err = f"http {resp.status_code}"
-                    time.sleep(delay)
-                    continue
-                if resp.status_code >= 500:
-                    last_err = f"http {resp.status_code}"
-                    time.sleep(self.backoff * (attempt + 1))
-                    continue
+            if resp.status_code in THROTTLE_STATUSES and throttles < self.throttle_retries:
+                throttles += 1
+                logger.warning(
+                    "http %d (throttled) on %s -- retry %d/%d; body: %r",
+                    resp.status_code, resp.url, throttles, self.throttle_retries, resp.text[:200],
+                )
+                if self.on_throttle is not None:
+                    self.on_throttle()  # returns once the block has lifted and it's our turn
+                else:
+                    time.sleep(self.throttle_backoff * 2 ** (throttles - 1))
+                continue
+            if resp.status_code >= 500 and attempt < self.retries - 1:
+                last_err = f"http {resp.status_code}"
+                attempt += 1
+                time.sleep(self.backoff * attempt)
+                continue
             resp.raise_for_status()
             return resp.json()
         raise RuntimeError(f"OData request failed after {self.retries} attempts: {last_err}")

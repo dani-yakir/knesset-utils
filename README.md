@@ -27,9 +27,14 @@ knesset-utils sync --table KNS_Faction --table KNS_Committee
 # Check per-table sync freshness
 knesset-utils status
 
+# More concurrency. The Knesset firewall, not the server, sets the pace: it blocks an IP
+# for ~2 min past roughly 1,000 requests per 2 min, so --max-rate caps requests/s and is
+# halved automatically on each block. Defaults: 4 workers, 3 req/s.
+knesset-utils sync --workers 32 --max-rate 6
+
 # Build a full seed mirror from scratch (schema-refresh + sync everything).
-# ~14h on an empty database (dominated by KNS_PlenumVoteResult's 1.95M rows);
-# re-running against an existing mirror is a cheap incremental catch-up instead.
+# ~1.5h on an empty database (~34k requests at ~6 req/s; 14h when it ran sequentially);
+# re-running against an existing mirror is an incremental catch-up instead.
 knesset-utils seed
 
 # Check foreign-key integrity in the local mirror (see docs/fk_integrity.md)
@@ -97,7 +102,8 @@ does not have the package installed.)
 
 ### Seeding the first release (one-time, local)
 
-The cloud never runs the ~14h full seed. Build it locally, then publish the seed once:
+The cloud never runs the full seed (~34k requests: ~1.5h from a home IP, and the firewall
+holds GitHub's runner IPs to a lower rate). Build it locally, then publish the seed once:
 
 ```
 knesset-utils seed                       # or reuse an existing data/knesset_mirror.sqlite
@@ -158,6 +164,19 @@ do silently.
   runs the full pipeline (schema-refresh + sync everything) as one command — meant to be run as an
   infrequent, standalone job, not part of every deploy. The deployment story for shipping/refreshing
   that seed artifact itself is still an open design question.
+- **The sync engine is parallel, and the Knesset firewall is what limits it.** The server caps
+  every response at 100 rows (a bigger `$top` still returns 100 plus a `nextLink`), so a full crawl
+  is ~34k requests no matter what, and nearly all the time is spent waiting on the server (0.2–2s
+  per page vs ~18ms to write it). `db/sync.py` therefore splits each table's Id range into chunks
+  crawled by a thread pool (keyset pagination per chunk; idle workers take half of a busy worker's
+  remaining range, because Ids are heavily clustered in some tables), with one SQLite writer. The
+  server itself keeps scaling to ~85 req/s at 32–48 concurrent requests, but its firewall answers
+  HTTP **481 "access denied"** once an IP sends more than roughly 1,000 requests in ~2 minutes,
+  then blocks it for up to ~2 minutes. That applies to home IPs too (measured: 8–10 req/s blocked
+  after ~2 min, 6.4 req/s held steady), and GitHub's runner IPs get a lower budget. So requests are
+  paced by rate, not just concurrency: on a block, every request pauses for 120s, the rate halves,
+  and later increases stop at 80% of the rate that tripped it. With that, a from-scratch crawl of
+  all 45 tables took **1h34m** (2026-09-11: 3,388,474 rows, 2 blocks, no failures) instead of 14h25m.
 - **Foreign keys are not reliable in the source data** — not a mirror bug, confirmed against the
   live API directly. E.g. `KNS_PlenumVoteResult.MkId` has no corresponding `KNS_Person` row for
   32.3% of vote rows (171 distinct MK ids), and the gap is current, not historical (orphaned votes
