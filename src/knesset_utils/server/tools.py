@@ -21,7 +21,7 @@ def register_tools(mcp: MCPServer, db_path: Path) -> None:
         try:
             rows = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name NOT LIKE 'sqlite_%' AND name != '_sync_state' ORDER BY name"
+                "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '\\_%' ESCAPE '\\' ORDER BY name"  # _sync_*, _staging_*
             ).fetchall()
             return [r[0] for r in rows]
         finally:

@@ -76,12 +76,18 @@ def _run_sync(
     log_path: Path,
     *,
     fail_on_any: bool = False,
+    workers: int = 1,
+    max_rate: float = 3.0,
 ) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror.
 
     A failure on one table (after the client's own retries are exhausted) is
     logged and skipped rather than aborting the whole run -- this matters
     for an all-tables run that can take hours.
+
+    `workers` caps concurrent requests and `max_rate` requests per second. The
+    Knesset firewall blocks an IP for ~2 minutes when it sends too fast, so on
+    a block the gate pauses everything, halves the rate and creeps back up.
 
     Exit code: 0 normally. Non-zero if *every* table failed, or if any table
     failed and `fail_on_any` is set (used by CI so a partial regression is
@@ -100,31 +106,25 @@ def _run_sync(
     ddl.create_all_tables(conn, {name: entities[name] for name in targets})
 
     logger.info("=" * 78)
-    logger.info("Sync run starting: %d table(s) -> %s", len(targets), db_path)
+    logger.info(
+        "Sync run starting: %d table(s), %d worker(s), max %.1f req/s -> %s", len(targets), workers, max_rate, db_path
+    )
     logger.info("=" * 78)
     run_start = time.monotonic()
-    succeeded: list[tuple[str, dict]] = []
-    failed: list[str] = []
 
-    with ODataClient() as client:
-        for i, name in enumerate(targets, 1):
-            entity = entities[name]
-            logger.info("[%d/%d] %s", i, len(targets), name)
-            try:
-                result = sync_mod.sync_table(client, conn, entity)
-                succeeded.append((name, result))
-            except Exception:
-                # Discard the failed table's uncommitted work. Without this, a
-                # full-replace that dies mid-crawl leaves its DELETE + partial
-                # rows pending, and the next table's commit persists a
-                # truncated (or empty) table.
-                conn.rollback()
-                logger.exception("FAILED syncing %s -- skipping, continuing with remaining tables", name)
-                failed.append(name)
-    conn.close()
+    gate = sync_mod.RequestGate(workers, rate=max_rate)
+    # Throttled requests wait out each block inside the gate, so allow many
+    # before giving up on a table: 10 blocks is ~20 minutes of being denied.
+    with ODataClient(max_connections=workers, on_throttle=gate.throttled, throttle_retries=10) as client:
+        try:
+            succeeded, failed = sync_mod.sync_tables(
+                client, conn, [entities[name] for name in targets], workers=workers, gate=gate
+            )
+        finally:
+            conn.close()
 
     elapsed = format_duration(time.monotonic() - run_start)
-    total_rows = sum(r["rows"] for _, r in succeeded)
+    total_rows = sum(r["rows"] for r in succeeded)
     logger.info("=" * 78)
     logger.info(
         "Sync run complete: %d/%d tables succeeded, %d rows synced this run, elapsed %s",
@@ -148,29 +148,33 @@ def sync(
         "--fail-on-any/--no-fail-on-any",
         help="Exit non-zero if ANY table fails (for CI). Default: exit non-zero only if all fail.",
     ),
+    workers: int = typer.Option(4, "--workers", min=1, help="Max concurrent requests."),
+    max_rate: float = typer.Option(3.0, "--max-rate", min=0.2, help="Max requests/s; halved on each firewall block."),
 ) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror."""
-    _run_sync(table, db_path, log_path, fail_on_any=fail_on_any)
+    _run_sync(table, db_path, log_path, fail_on_any=fail_on_any, workers=workers, max_rate=max_rate)
 
 
 @app.command()
 def seed(
     db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
     log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
+    workers: int = typer.Option(16, "--workers", min=1, help="Max concurrent requests."),
+    max_rate: float = typer.Option(6.0, "--max-rate", min=0.2, help="Max requests/s; halved on each firewall block."),
 ) -> None:
     """Build a seed mirror from scratch: refresh the schema snapshot, then sync every table.
 
     This is the full pipeline (schema-refresh + sync --all) as a single entrypoint.
-    On an empty/new database this is the ~14h initial crawl (dominated by
-    KNS_PlenumVoteResult); re-running it against an existing mirror is a cheap
-    incremental catch-up instead, since sync_table already routes each table
-    accordingly. Meant to be run as an infrequent, standalone job -- not part of
-    a normal deploy.
+    On an empty/new database this is the initial crawl (~34k requests, dominated
+    by KNS_PlenumVoteResult; 14h when it ran sequentially); re-running it against
+    an existing mirror is a cheap incremental catch-up instead, since sync routes
+    each table by its state. Meant to be run as an infrequent, standalone job --
+    not part of a normal deploy.
     """
     typer.echo("=== seed: refreshing schema snapshot ===")
     _refresh_schema()
     typer.echo("=== seed: syncing all tables ===")
-    _run_sync(None, db_path, log_path)
+    _run_sync(None, db_path, log_path, workers=workers, max_rate=max_rate)
 
 
 @app.command("validate-fks")

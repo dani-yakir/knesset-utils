@@ -54,3 +54,12 @@ def test_5xx_keeps_its_linear_backoff(monkeypatch):
 
     assert c.get_entities("KNS_Foo") == {"value": []}
     assert sleeps == [1.0, 2.0]
+
+
+def test_throttle_callback_fires_per_throttled_response(monkeypatch):
+    c, calls, sleeps = _client_with(monkeypatch, [481, 429, 200])
+    seen = []
+    c.on_throttle = lambda: seen.append(1)
+
+    c.get_entities("KNS_Foo")
+    assert len(seen) == 2
