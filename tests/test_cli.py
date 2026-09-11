@@ -4,6 +4,7 @@ import pytest
 import typer
 
 from knesset_utils import cli
+from knesset_utils.db import ddl
 from knesset_utils.schema.metadata import ColumnDef, EntityDef
 
 
@@ -76,3 +77,38 @@ def test_created_db_is_a_valid_sqlite_file(monkeypatch, two_tables):
     names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
     assert {"KNS_A", "KNS_B", "_sync_state"} <= names
+
+
+def test_run_sync_rolls_back_a_table_that_fails_mid_full_replace(monkeypatch, two_tables):
+    """A full-replace that dies after its DELETE must keep its old rows, not have
+    the DELETE + partial crawl committed by the next table's sync."""
+    db = two_tables / "m.sqlite"
+    conn = sqlite3.connect(db)
+    ddl.create_all_tables(conn, cli.schema_metadata.load_snapshot())
+    conn.executemany('INSERT INTO "KNS_A" (Id) VALUES (?)', [(i,) for i in range(1, 251)])
+    conn.commit()
+    conn.close()
+
+    class FlakyClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get_entities(self, entity_set, filter=None, orderby=None, top=None, count=False):
+            if entity_set == "KNS_A":
+                if filter == "Id gt 0":
+                    return {"value": [{"Id": i} for i in range(1, 101)]}  # full page -> crawl continues
+                raise RuntimeError("481 mid-crawl")
+            return {"value": [{"Id": 1}]}
+
+    monkeypatch.setattr(cli, "ODataClient", FlakyClient)
+    cli._run_sync(None, db, two_tables / "sync.log", fail_on_any=False)
+
+    conn = sqlite3.connect(db)
+    try:
+        assert conn.execute('SELECT COUNT(*) FROM "KNS_A"').fetchone()[0] == 250
+        assert conn.execute('SELECT COUNT(*) FROM "KNS_B"').fetchone()[0] == 1
+    finally:
+        conn.close()

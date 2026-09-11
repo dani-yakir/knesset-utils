@@ -114,6 +114,11 @@ def _run_sync(
                 result = sync_mod.sync_table(client, conn, entity)
                 succeeded.append((name, result))
             except Exception:
+                # Discard the failed table's uncommitted work. Without this, a
+                # full-replace that dies mid-crawl leaves its DELETE + partial
+                # rows pending, and the next table's commit persists a
+                # truncated (or empty) table.
+                conn.rollback()
                 logger.exception("FAILED syncing %s -- skipping, continuing with remaining tables", name)
                 failed.append(name)
     conn.close()
