@@ -39,7 +39,7 @@ services:
       - key: MIRROR_ASSET
         value: knesset_mirror.sqlite.zst
       - key: MIRROR_ZSTD_LONG
-        value: "27"           # must equal `zstd --long=NN` in .github/workflows/sync.yml
+        value: "27"           # must equal `zstd --long=NN` in .github/workflows/regenerate.yml
       - key: MIRROR_REFRESH_INTERVAL_SECONDS
         value: "21600"        # re-check the release every 6h
       - key: MCP_AUTH_TOKEN

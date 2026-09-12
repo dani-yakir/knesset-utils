@@ -78,6 +78,7 @@ def _run_sync(
     fail_on_any: bool = False,
     workers: int = 1,
     max_rate: float = 3.0,
+    max_runtime_min: float = 0,
 ) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror.
 
@@ -88,6 +89,9 @@ def _run_sync(
     `workers` caps concurrent requests and `max_rate` requests per second. The
     Knesset firewall blocks an IP for ~2 minutes when it sends too fast, so on
     a block the gate pauses everything, halves the rate and creeps back up.
+
+    `max_runtime_min` stops the run cleanly once spent; a crawl resumes from its
+    chunk checkpoints next time, so a rebuild can span several capped jobs.
 
     Exit code: 0 normally. Non-zero if *every* table failed, or if any table
     failed and `fail_on_any` is set (used by CI so a partial regression is
@@ -118,7 +122,12 @@ def _run_sync(
     with ODataClient(max_connections=workers, on_throttle=gate.throttled, throttle_retries=10) as client:
         try:
             succeeded, failed = sync_mod.sync_tables(
-                client, conn, [entities[name] for name in targets], workers=workers, gate=gate
+                client,
+                conn,
+                [entities[name] for name in targets],
+                workers=workers,
+                gate=gate,
+                max_runtime_s=max_runtime_min * 60 or None,
             )
         finally:
             conn.close()
@@ -150,9 +159,20 @@ def sync(
     ),
     workers: int = typer.Option(4, "--workers", min=1, help="Max concurrent requests."),
     max_rate: float = typer.Option(3.0, "--max-rate", min=0.2, help="Max requests/s; halved on each firewall block."),
+    max_runtime_min: float = typer.Option(
+        0, "--max-runtime", min=0, help="Stop cleanly after N minutes (0 = run to completion); resumable."
+    ),
 ) -> None:
     """Sync entity sets from the live OData API into the SQLite mirror."""
-    _run_sync(table, db_path, log_path, fail_on_any=fail_on_any, workers=workers, max_rate=max_rate)
+    _run_sync(
+        table,
+        db_path,
+        log_path,
+        fail_on_any=fail_on_any,
+        workers=workers,
+        max_rate=max_rate,
+        max_runtime_min=max_runtime_min,
+    )
 
 
 @app.command()
@@ -161,6 +181,9 @@ def seed(
     log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log", help="Log file path"),
     workers: int = typer.Option(16, "--workers", min=1, help="Max concurrent requests."),
     max_rate: float = typer.Option(6.0, "--max-rate", min=0.2, help="Max requests/s; halved on each firewall block."),
+    max_runtime_min: float = typer.Option(
+        0, "--max-runtime", min=0, help="Stop cleanly after N minutes (0 = run to completion); resumable."
+    ),
 ) -> None:
     """Build a seed mirror from scratch: refresh the schema snapshot, then sync every table.
 
@@ -174,7 +197,7 @@ def seed(
     typer.echo("=== seed: refreshing schema snapshot ===")
     _refresh_schema()
     typer.echo("=== seed: syncing all tables ===")
-    _run_sync(None, db_path, log_path, workers=workers, max_rate=max_rate)
+    _run_sync(None, db_path, log_path, workers=workers, max_rate=max_rate, max_runtime_min=max_runtime_min)
 
 
 @app.command("validate-fks")
@@ -203,8 +226,19 @@ def validate_fks(db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQL
 
 
 @app.command()
-def status(db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path")) -> None:
-    """Show per-table sync state."""
+def status(
+    db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mirror path"),
+    check_complete: bool = typer.Option(
+        False, "--check-complete", help="Exit non-zero unless every table in the snapshot is fully crawled."
+    ),
+) -> None:
+    """Show per-table sync state.
+
+    With --check-complete, say whether this mirror is a finished one: every table
+    in the schema snapshot crawled and no chunk left unfetched. regenerate.yml
+    uses it to decide whether a rebuild can be published or has to continue.
+    """
+    entities = schema_metadata.load_snapshot()
     conn = _connect(db_path)
     rows = conn.execute(
         "SELECT table_name, full_sync_complete, last_synced_at, rows_synced FROM _sync_state ORDER BY table_name"
@@ -213,7 +247,17 @@ def status(db_path: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite mi
         typer.echo("No sync history yet.")
     for table_name, complete, last_synced_at, rows_synced in rows:
         typer.echo(f"{table_name:35s} complete={bool(complete)!s:5s} last_synced={last_synced_at} rows={rows_synced}")
+
+    done = {name for name, complete, *_ in rows if complete}
+    missing = sorted(set(entities) - done)
+    chunks = conn.execute("SELECT COUNT(*) FROM _sync_chunks").fetchone()[0]
     conn.close()
+    if not check_complete:
+        return
+    if missing or chunks:
+        typer.echo(f"INCOMPLETE: {len(missing)} table(s) not fully crawled, {chunks} chunk(s) left: {missing[:5]}")
+        raise typer.Exit(1)
+    typer.echo(f"COMPLETE: all {len(entities)} tables crawled")
 
 
 if __name__ == "__main__":
