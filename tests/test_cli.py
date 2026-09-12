@@ -4,7 +4,7 @@ import pytest
 import typer
 
 from knesset_utils import cli
-from knesset_utils.db import ddl
+from knesset_utils.db import ddl, state as state_mod
 from knesset_utils.schema.metadata import ColumnDef, EntityDef
 from tests.fake_odata import FakeOData
 
@@ -34,7 +34,7 @@ def two_tables(monkeypatch, tmp_path):
 def _run(monkeypatch, tmp_path, results, *, fail_on_any):
     """results: dict table_name -> "ok" | Exception to raise."""
 
-    def fake_sync_tables(client, conn, entities, *, workers, gate):
+    def fake_sync_tables(client, conn, entities, *, workers, gate, max_runtime_s=None):
         succeeded, failed = [], []
         for entity in entities:
             if isinstance(results[entity.entity_set], Exception):
@@ -107,3 +107,38 @@ def test_run_sync_keeps_old_rows_of_a_full_replace_that_fails_mid_crawl(monkeypa
         assert conn.execute('SELECT COUNT(*) FROM "KNS_B"').fetchone()[0] == 1
     finally:
         conn.close()
+
+
+def _state_db(tmp_path, complete):
+    db = tmp_path / "m.sqlite"
+    conn = sqlite3.connect(db)
+    state_mod.ensure_state_table(conn)
+    ddl.create_all_tables(conn, cli.schema_metadata.load_snapshot())
+    for name in complete:
+        state_mod.save_state(conn, state_mod.SyncState(name, full_sync_complete=True))
+    conn.commit()
+    conn.close()
+    return db
+
+
+def test_status_check_complete_rejects_a_half_crawled_mirror(two_tables):
+    db = _state_db(two_tables, complete=["KNS_A"])
+    with pytest.raises(typer.Exit) as exc:
+        cli.status(db_path=db, check_complete=True)
+    assert exc.value.exit_code == 1
+
+
+def test_status_check_complete_rejects_leftover_chunks(two_tables):
+    db = _state_db(two_tables, complete=["KNS_A", "KNS_B"])
+    conn = sqlite3.connect(db)
+    conn.execute("INSERT INTO _sync_chunks (table_name, lo, hi, cursor) VALUES ('KNS_B', 500, 900, 700)")
+    conn.commit()
+    conn.close()
+    with pytest.raises(typer.Exit) as exc:
+        cli.status(db_path=db, check_complete=True)
+    assert exc.value.exit_code == 1
+
+
+def test_status_check_complete_accepts_a_finished_mirror(two_tables):
+    db = _state_db(two_tables, complete=["KNS_A", "KNS_B"])
+    cli.status(db_path=db, check_complete=True)  # no Exit raised

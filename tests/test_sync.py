@@ -246,3 +246,25 @@ def test_gate_caps_requests_in_flight():
     for t in threads:
         t.join()
     assert peak == 3
+
+
+def test_a_runtime_budget_stops_the_run_and_the_next_one_resumes():
+    """A rebuild outlasts a capped CI job: it stops on the budget, keeps its
+    chunk checkpoints, and the next run carries on from them."""
+    entity = _entity("KNS_Foo")
+    source = [_row(i) for i in range(1, 5001)]
+    fake = FakeOData({"KNS_Foo": source}, latency=0.02)
+    conn = _db(entity)
+
+    succeeded, failed = sync_mod.sync_tables(fake, conn, [entity], workers=2, max_runtime_s=0.3)
+
+    assert (succeeded, failed) == ([], [])  # nothing finished, but nothing failed either
+    assert 0 < len(_ids(conn, "KNS_Foo")) < len(source)
+    assert _chunks_left(conn, "KNS_Foo") > 0
+    assert not state_mod.get_state(conn, "KNS_Foo").full_sync_complete
+
+    succeeded, failed = sync_mod.sync_tables(fake, conn, [entity], workers=2)
+
+    assert failed == []
+    assert _ids(conn, "KNS_Foo") == [r["Id"] for r in source]
+    assert state_mod.get_state(conn, "KNS_Foo").full_sync_complete
