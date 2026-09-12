@@ -47,12 +47,19 @@ python -m knesset_utils.server.mcp_server
 ## Deployment
 
 The MCP server is deployed as a Docker web service on **Render** (`render.yaml`); the mirror is
-refreshed by a scheduled **GitHub Actions** workflow (`.github/workflows/sync.yml`), not a
-long-running server. The two are decoupled through **GitHub Releases**: a moving `latest`
-release holds the current `knesset_mirror.sqlite.zst`, and the server downloads it on boot and
-re-checks every 6h. Because `db/sync.py` checkpoints progress into the `_sync_state` table
-*inside* the sqlite file, the release asset is simultaneously the distributed artifact and the
-sync state store.
+**rebuilt from scratch** by a scheduled **GitHub Actions** workflow
+(`.github/workflows/regenerate.yml`), not a long-running server. The two are decoupled through
+**GitHub Releases**: a moving `latest` release holds the current `knesset_mirror.sqlite.zst`,
+and the server downloads it on boot and re-checks every 6h. Because `db/sync.py` checkpoints
+progress into the `_sync_state` and `_sync_chunks` tables *inside* the sqlite file, the release
+asset is simultaneously the distributed artifact and the crawl state store.
+
+There is no incremental refresh: `LastUpdatedDate` does not reliably change when the data does
+(see Design notes), so each cycle re-crawls everything. A rebuild is ~34k requests and the
+Knesset firewall paces it to hours, which is longer than a GitHub-hosted job may run, so the
+crawl takes a `--max-runtime` budget and the partial mirror is parked in a `rebuild-wip`
+prerelease that the next run continues. `latest` only moves when a rebuild is **complete**
+(`knesset-utils status --check-complete`), so what the server serves is never a half-crawl.
 
 ### Server configuration (env vars)
 
@@ -67,7 +74,7 @@ behaves exactly as before: stdio, `data/knesset_mirror.sqlite`, no auth.
 | `MCP_AUTH_TOKEN` | shared secret required as `Authorization: Bearer <token>` on `/mcp` |
 | `MCP_PUBLIC_URL` | public base URL (used by `MCP_NATIVE_AUTH`, the opt-in OAuth-style path) |
 | `MIRROR_REPO` | `owner/repo` holding the mirror releases; unset disables all fetching |
-| `MIRROR_ZSTD_LONG` | must equal `zstd --long=NN` in `sync.yml` (currently `27`) |
+| `MIRROR_ZSTD_LONG` | must equal `zstd --long=NN` in `regenerate.yml` (currently `27`) |
 | `MIRROR_REFRESH_INTERVAL_SECONDS` | background re-check cadence; `0` disables |
 
 `GET /healthz` is unauthenticated and reports `db_exists` + `last_synced_at`.
@@ -114,11 +121,11 @@ gh release create mirror-$(date -u +%F) knesset_mirror.sqlite.zst --title "mirro
 
 ### Schema drift is not handled in the cloud (by design)
 
-`sync.yml` never runs `schema-refresh`, so new/renamed upstream columns are ignored until
-someone runs `knesset-utils schema-refresh` locally, commits the updated
-`src/knesset_utils/schema/snapshot.json`, **re-seeds locally**, and uploads a fresh `latest`.
-Adding a table is therefore a deliberate PR + manual re-seed, not something a nightly run can
-do silently.
+`regenerate.yml` never runs `schema-refresh`, so new/renamed upstream columns are ignored until
+someone runs `knesset-utils schema-refresh` locally and commits the updated
+`src/knesset_utils/schema/snapshot.json`. Adding a table stays a deliberate PR, not something a
+nightly run does silently -- but once merged, the next rebuild that starts from an empty
+database picks it up on its own (a rebuild already in flight keeps the schema it started with).
 
 ## Design notes
 
@@ -160,7 +167,7 @@ do silently.
   order of hours, not minutes — confirmed: the first full mirror of all 45 tables took **14h25m**
   end-to-end (3,362,911 rows), with `KNS_PlenumVoteResult` alone accounting for 7h. A subsequent
   incremental resync of all 45 tables (nothing changed upstream) took **21m13s** — roughly 40x
-  faster, confirming incremental sync is the right model for routine refreshes. `knesset-utils seed`
+  faster -- but see the next bullet for why incremental refresh was dropped anyway. `knesset-utils seed`
   runs the full pipeline (schema-refresh + sync everything) as one command — meant to be run as an
   infrequent, standalone job, not part of every deploy. The deployment story for shipping/refreshing
   that seed artifact itself is still an open design question.
@@ -177,10 +184,20 @@ do silently.
   paced by rate, not just concurrency: on a block, every request pauses for 120s, the rate halves,
   and later increases stop at 80% of the rate that tripped it. With that, a from-scratch crawl of
   all 45 tables took **1h34m** (2026-09-11: 3,388,474 rows, 2 blocks, no failures) instead of 14h25m.
+- **`LastUpdatedDate` is not a reliable change signal**, which is why the mirror is rebuilt
+  rather than patched. Comparing a from-scratch crawl (2026-09-11) against the incrementally
+  synced mirror published the same day: `KNS_PlenumVoteResult.MkId` differed on **631,655 rows**
+  (32%) with no timestamp change -- the live API agrees with the fresh crawl -- so an upstream
+  data fix was invisible to incremental sync. `KNS_PlmSessionItem.Id` turned out to be a dense
+  `1..N` row number that is **renumbered** when upstream rows disappear (the row published as Id
+  50558 is now 50518), which makes upsert-by-Id unsound for it. Rows deleted upstream never left
+  the mirror (191 of them). And a handful of FK columns were re-pointed with no timestamp change
+  (`KNS_DocumentAgenda`, `KNS_DocumentBill`, `KNS_Bill`). None of these can be detected by
+  filtering on `LastUpdatedDate`; only a full re-crawl sees them.
 - **Foreign keys are not reliable in the source data** — not a mirror bug, confirmed against the
-  live API directly. E.g. `KNS_PlenumVoteResult.MkId` has no corresponding `KNS_Person` row for
-  32.3% of vote rows (171 distinct MK ids), and the gap is current, not historical (orphaned votes
-  run through 2026-07-28). `KNS_DocumentAgenda.AgendaID` is worse — 62.7% of rows point at an
+  live API directly. E.g. `KNS_PlenumVoteResult.MkId` had no corresponding `KNS_Person` row for
+  32.3% of vote rows (171 distinct MK ids) in the 2026-08 seed -- though that particular gap was
+  since fixed upstream: the 2026-09-11 from-scratch crawl has **zero** MkId orphans. `KNS_DocumentAgenda.AgendaID` is worse — 62.7% of rows point at an
   `AgendaID` absent from `KNS_Agenda`. Some other FK-shaped columns showing "orphans" turned out to
   be sentinel values (`KNS_Bill.CommitteeID = -1` means "unassigned," not corruption) or an
   incomplete lookup table, not real dangling references. Full methodology, the complete per-FK

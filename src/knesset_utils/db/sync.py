@@ -558,12 +558,19 @@ def sync_tables(
     *,
     workers: int = 1,
     gate: RequestGate | None = None,
+    max_runtime_s: float | None = None,
 ) -> tuple[list[dict], list[str]]:
     """Sync `entities` with `workers` concurrent fetchers. Returns
     (succeeded results, failed table names); a failed table never aborts the run.
 
     Pass the gate the client reports throttles to (ODataClient's `on_throttle`)
     so the request rate adapts; without one, requests aren't paced at all.
+
+    `max_runtime_s` stops fetching once the budget is spent, for jobs with a
+    time cap (a full rebuild outlasts a GitHub-hosted runner's 6h): finished
+    pages and their chunk cursors are committed, so the next run resumes from
+    them. Overshoot is bounded by the page in flight -- a worker parked in a
+    firewall block only notices when the block lifts.
     """
     workers = max(1, workers)
     gate = gate or RequestGate(workers, rate=math.inf)
@@ -619,6 +626,8 @@ def sync_tables(
         t.start()
 
     exits = 0
+    stopping = False
+    deadline = started + max_runtime_s if max_runtime_s else None
     last_commit = last_progress = time.monotonic()
     try:
         while exits < workers:
@@ -631,6 +640,15 @@ def sync_tables(
             elif msg is not None:
                 writer.handle(msg)
             now = time.monotonic()
+            if deadline and not stopping and now >= deadline:
+                stopping = True
+                logger.warning(
+                    "runtime budget spent after %s -- stopping; %d units still queued, "
+                    "resume from the chunk checkpoints",
+                    format_duration(now - started), sched.queued,
+                )
+                stop.set()
+                sched.stop()
             if now - last_commit >= COMMIT_EVERY_S:
                 conn.commit()
                 last_commit = now

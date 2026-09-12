@@ -1,6 +1,6 @@
 """Fetch the current SQLite mirror from a GitHub Release and swap it into place.
 
-The sync job (`.github/workflows/sync.yml`) publishes the refreshed mirror as a
+The rebuild job (`.github/workflows/regenerate.yml`) publishes each finished mirror as a
 zstd-compressed asset on a moving `latest` release. The HTTP server calls
 `ensure_mirror()` on boot and, optionally, from a background thread, to keep its
 local copy current.

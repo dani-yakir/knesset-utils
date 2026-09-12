@@ -37,7 +37,7 @@ class ServerConfig:
     mirror_release_tag: str   # e.g. "latest"
     mirror_asset: str         # asset filename in the release
     github_token: str | None  # only needed for a PRIVATE mirror repo
-    zstd_long_window_log: int # must match sync.yml's `zstd --long=NN`; 0 = no --long
+    zstd_long_window_log: int # must match regenerate.yml's `zstd --long=NN`; 0 = no --long
     refresh_interval: int     # seconds between background mirror re-checks; 0 = disabled
     download_on_boot: bool
 
