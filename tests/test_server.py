@@ -101,3 +101,51 @@ def test_healthz_route_degraded_when_db_missing(tmp_path):
     resp = client.get("/healthz")
     assert resp.status_code == 503
     assert resp.json()["db_exists"] is False
+
+
+def _links_db(tmp_path):
+    db = tmp_path / "mirror.sqlite"
+    conn = sqlite3.connect(db)
+    conn.executescript("""
+        CREATE TABLE KNS_PlenumVote (Id INTEGER PRIMARY KEY, VoteDateTime TEXT, VoteTitle TEXT,
+            VoteSubject TEXT, ForOptionDesc TEXT, ItemID INTEGER);
+        CREATE TABLE KNS_Bill (Id INTEGER PRIMARY KEY, Name TEXT, KnessetNum INTEGER);
+        CREATE TABLE KNS_IsraelLaw (Id INTEGER PRIMARY KEY, Name TEXT);
+        CREATE TABLE KNS_LawBinding (Id INTEGER PRIMARY KEY, LawID INTEGER, IsraelLawID INTEGER,
+            BindingType INTEGER);
+        INSERT INTO KNS_PlenumVote VALUES (46248, '2026-07-13T21:47:00+03:00', 'חוק-יסוד: לימוד תורה',
+            NULL, 'לקבל את הצעת החוק בקריאה שלישית', 2198907);
+        INSERT INTO KNS_PlenumVote VALUES (1, '2003-01-01', 'motion', NULL, 'x', 999);
+        INSERT INTO KNS_Bill VALUES (2198907, 'חוק-יסוד: לימוד תורה', 25);
+        INSERT INTO KNS_IsraelLaw VALUES (2245265, 'חוק-יסוד: לימוד תורה');
+        INSERT INTO KNS_IsraelLaw VALUES (7, 'old law');
+        INSERT INTO KNS_LawBinding VALUES (1, 2198907, 2245265, 6012);
+        INSERT INTO KNS_LawBinding VALUES (2, 2198907, 7, 6013);
+    """)
+    conn.commit()
+    conn.close()
+    return build_server(db)
+
+
+def _call(mcp, name, args):
+    return asyncio.run(mcp.call_tool(name, args)).structured_content["result"]
+
+
+def test_vote_link_includes_bill_link(tmp_path):
+    mcp = _links_db(tmp_path)
+    [vote, other, missing] = _call(mcp, "get_vote_official_link", {"vote_ids": [46248, 1, 5]})
+    assert vote["url"] == "https://main.knesset.gov.il/Activity/plenum/Votes/Pages/vote.aspx?voteId=46248"
+    assert vote["bill_url"] == "https://main.knesset.gov.il/apps/legislation/main/bills/2198907"
+    assert other["bill_id"] is None and other["bill_url"] is None  # ItemID is not a bill
+    assert missing == {"vote_id": 5, "url": missing["url"], "found_in_mirror": False}
+
+
+def test_bill_link_accepts_bills_and_laws(tmp_path):
+    mcp = _links_db(tmp_path)
+    assert _call(mcp, "get_vote_official_link", {"vote_ids": 46248})[0]["vote_id"] == 46248
+    bill, law, unlinked = _call(
+        mcp, "get_bill_official_link", {"bill_ids": 2198907, "israel_law_ids": [2245265, 7]}
+    )
+    assert bill["url"] == "https://main.knesset.gov.il/apps/legislation/main/bills/2198907"
+    assert law["bill_id"] == 2198907 and law["url"] == bill["url"]
+    assert unlinked["url"] is None  # only an amending binding, no original bill

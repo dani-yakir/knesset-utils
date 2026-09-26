@@ -32,6 +32,13 @@ Core model:
 - Dates are ISO-8601 text with a timezone offset, so compare them as strings
   ('2025-01-01' <= d < '2026-01-01').
 - Foreign keys in the source are not fully reliable; prefer LEFT JOIN when counting.
+- A law in force (KNS_IsraelLaw) links to the bill that enacted it via KNS_LawBinding
+  (IsraelLawID -> LawID = KNS_Bill.Id, BindingTypeDesc 'החוק המקורי'). A bill's plenum votes
+  are the KNS_PlenumVote rows with ItemID = the bill's Id.
+
+Citing sources: whenever an answer refers to specific plenum votes, bills or laws, call
+get_vote_official_link / get_bill_official_link (they take lists of ids) and include the
+official knesset.gov.il URLs in the answer.
 """
 
 TABLE_DESCRIPTIONS: dict[str, str] = {
