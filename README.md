@@ -206,3 +206,21 @@ database picks it up on its own (a rebuild already in flight keeps the schema it
   reproduce. Nothing consumes or enforces this yet — it's a read-only report; anything doing a
   `JOIN` against the mirror (including the stats layer) needs to know an inner join can silently
   drop a meaningful fraction of rows.
+
+## MCP ergonomics eval
+
+`eval/` measures how easily a fresh LLM agent can answer real questions through the MCP tools.
+`eval/questions.json` holds 22 questions (themes from public Knesset FAQs/statistics) with gold
+answers computed against the frozen `data/scratch-2026-09-11.sqlite` snapshot; `eval/split.json`
+is a seeded random train/test split. Each run is a headless `claude -p` agent with every
+built-in tool disabled and only this MCP server attached (over stdio, from a chosen source tree),
+so two server versions can be A/B tested on identical data. A blind LLM judge grades the answers.
+
+```
+python eval/run_eval.py run --label A-train-1 --src <baseline-worktree>/src --split train
+python eval/run_eval.py run --label B-train-1 --split train          # working tree
+python eval/run_eval.py grade eval/runs/A-train-1 eval/runs/B-train-1
+python eval/run_eval.py report eval/runs/*-train-*
+```
+
+Tune tools on `train`; use `test` only to confirm a change generalizes.
