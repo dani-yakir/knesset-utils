@@ -11,3 +11,4 @@ data/*.release
 build/
 dist/
 .pytest_cache/
+eval/runs/

@@ -1,0 +1,144 @@
+{
+  "snapshot": "data/scratch-2026-09-11.sqlite (from-scratch crawl, 2026-09-11)",
+  "sources": [
+    "https://en.idi.org.il/articles/55690",
+    "https://en.idi.org.il/articles/34024",
+    "https://en.wikipedia.org/wiki/Knesset",
+    "https://en.wikipedia.org/wiki/Basic_Law:_The_Knesset",
+    "https://www.timesofisrael.com/6644-bills-5756-queries-was-20th-knesset-a-tale-of-quantity-over-quality/"
+  ],
+  "questions": [
+    {
+      "id": "Q01",
+      "question": "How many members currently serve in the Knesset, and how many of them are women?",
+      "gold": "120 current MKs, of whom 33 are women.",
+      "notes": "KNS_PersonToPosition PositionID in (43,61) AND IsCurrent=1, gender from KNS_Person. Both numbers needed for full credit."
+    },
+    {
+      "id": "Q02",
+      "question": "How many different women served as Knesset members at any point during the 25th Knesset?",
+      "gold": "37",
+      "notes": "Distinct PersonID with PositionID in (43,61), KnessetNum=25, GenderDesc female."
+    },
+    {
+      "id": "Q03",
+      "question": "Who is the current Speaker of the Knesset, and on what date did they take office?",
+      "gold": "Amir Ohana, since 2022-12-29.",
+      "notes": "PositionID 122/123 (Speaker). Name alone = partial credit."
+    },
+    {
+      "id": "Q04",
+      "question": "Who is the only woman ever to have served as Speaker of the Knesset, and during which Knesset did she serve?",
+      "gold": "Dalia Itzik, during the 17th Knesset (2006-2009).",
+      "notes": "PositionID 123."
+    },
+    {
+      "id": "Q05",
+      "question": "In the 25th Knesset, how many bills were submitted in total, and how many of them passed their third reading (became law)?",
+      "gold": "7,491 bills submitted; 573 passed third reading.",
+      "notes": "KNS_Bill KnessetNum=25; passed = StatusID 118 ('התקבלה בקריאה שלישית'). Includes all SubTypes."
+    },
+    {
+      "id": "Q06",
+      "question": "Of the bills that passed their third reading in the 25th Knesset, how many were government bills, how many were private members' bills, and how many were committee bills?",
+      "gold": "363 government, 199 private, 11 committee (573 total).",
+      "notes": "KNS_Bill.SubTypeDesc ממשלתית/פרטית/ועדה with StatusID 118."
+    },
+    {
+      "id": "Q07",
+      "question": "How many no-confidence motions were brought to a plenum vote during the 25th Knesset?",
+      "gold": "221",
+      "notes": "KNS_PlenumVote.ForOptionDesc = 'להביע אי-אמון בממשלה', session in Knesset 25 (or VoteDateTime >= 2022-11-15). NOTE: IsNoConfidenceInGov is almost always NULL (only 4 rows set) -- answering 4 or ~0 is wrong."
+    },
+    {
+      "id": "Q08",
+      "question": "How many parliamentary questions (queries to ministers) were filed in the 25th Knesset, and what share of them have been answered?",
+      "gold": "1,580 queries; 1,100 answered (about 69.6%).",
+      "notes": "KNS_Query KnessetNum=25; answered = StatusID 9 ('נענתה'). Regular: 1,378 (899 answered); urgent: 202 (201 answered)."
+    },
+    {
+      "id": "Q09",
+      "question": "Which government ministry received the most parliamentary questions in the 25th Knesset?",
+      "gold": "The Ministry of Education (176 queries).",
+      "notes": "KNS_Query.GovMinistryID -> KNS_GovMinistry. Runner-up: Defense (162)."
+    },
+    {
+      "id": "Q10",
+      "question": "Which Knesset member filed the most parliamentary questions in the 25th Knesset?",
+      "gold": "Ofer Cassif (111 queries).",
+      "notes": "KNS_Query.PersonID. Runner-up Michael Biton (88)."
+    },
+    {
+      "id": "Q11",
+      "question": "Which Knesset member(s) served in the largest number of different Knessets, and how many?",
+      "gold": "A three-way tie at 14 Knessets: Benjamin Netanyahu, Moshe Gafni and Shimon Peres.",
+      "notes": "Distinct KnessetNum per person with PositionID in (43,61). Naming only one of the three with 14 = partial credit."
+    },
+    {
+      "id": "Q12",
+      "question": "How many of Israel's Basic Laws are currently in force?",
+      "gold": "14 (19 laws are flagged as Basic Laws in total, including repealed versions and expired temporary budget Basic Laws).",
+      "notes": "KNS_IsraelLaw IsBasicLaw=1 AND LawValidityDesc='תקף'. Answering 19 without filtering validity = wrong."
+    },
+    {
+      "id": "Q13",
+      "question": "How many different people have held the office of Prime Minister of Israel (the position itself, including interim PMs, but not titles like vice/acting PM or alternate PM)?",
+      "gold": "15 (including interim PM Yigal Allon); 14 excluding him.",
+      "notes": "PositionID 45 only. Accept 15, or 14 if the answer explicitly excludes Allon as interim. v2 wording: v1 said 'including acting PMs', which ambiguously invited PositionID 51 (vice/acting PM title, e.g. Tzipi Livni)."
+    },
+    {
+      "id": "Q14",
+      "question": "What was the plenum vote tally on the final (third) reading of the 'reasonableness' amendment -- Basic Law: The Judiciary (Amendment No. 4) -- in July 2023?",
+      "gold": "64 in favor, 0 against (the opposition boycotted the vote).",
+      "notes": "KNS_PlenumVote Id 39785 (2023-07-24, 'לקבל את הצעת החוק בקריאה שלישית'). The second-reading vote was 64-56 -- giving that = wrong."
+    },
+    {
+      "id": "Q15",
+      "question": "Which Knesset member was listed as an initiator (not a later co-signer) on the most bills in the 25th Knesset?",
+      "gold": "Walid Alhwashla (399 bills as initiator).",
+      "notes": "KNS_BillInitiator IsInitiator=1, bills with KnessetNum=25. Runner-up Sharon Nir 398. Also top if counting first-listed initiator only (Ordinal=1, 278)."
+    },
+    {
+      "id": "Q16",
+      "question": "Which Knesset member was an initiator of the most bills that passed into law (third reading) in the 25th Knesset?",
+      "gold": "Ofir Katz (36 bills).",
+      "notes": "KNS_BillInitiator joined to KNS_Bill StatusID=118, KnessetNum=25. Runner-up Yinon Azoulay 35."
+    },
+    {
+      "id": "Q17",
+      "question": "How many factions (parliamentary groups) have been registered in the 25th Knesset?",
+      "gold": "16",
+      "notes": "KNS_Faction KnessetNum=25 (includes splits such as Idan Roll's single-MK faction)."
+    },
+    {
+      "id": "Q18",
+      "question": "How many sessions did the Knesset Finance Committee hold during the 25th Knesset (excluding cancelled sessions)?",
+      "gold": "983 (1,146 including 163 cancelled sessions).",
+      "notes": "KNS_Committee Id 4186 'ועדת הכספים'; KNS_CommitteeSession StatusDesc != 'מבוטלת'. Answering 1,146 = partial credit."
+    },
+    {
+      "id": "Q19",
+      "question": "How many different people served as government ministers in Israel's 37th government?",
+      "gold": "41",
+      "notes": "KNS_PersonToPosition PositionID in (39,57) (minister m/f) with GovernmentNum=37; including PM does not change the count."
+    },
+    {
+      "id": "Q20",
+      "question": "How often did Itamar Ben Gvir and Bezalel Smotrich vote the same way in plenum votes?",
+      "gold": "About 99.9% of their 1,873 shared votes.",
+      "notes": "mk_vote_agreement(30811, 30055): agreement_rate 0.99893, shared_votes 1873. Rate within +/-0.5pp is correct."
+    },
+    {
+      "id": "Q21",
+      "question": "In how many plenum votes did Benjamin Netanyahu cast a recorded vote during 2025, out of how many plenum votes held that year?",
+      "gold": "154 of 1,837 plenum votes held in 2025.",
+      "notes": "KNS_PlenumVoteResult MkId=965 with VoteDate in 2025; KNS_PlenumVote VoteDateTime in 2025."
+    },
+    {
+      "id": "Q22",
+      "question": "How many different Knesset members belonged to the Likud faction at some point during the 25th Knesset?",
+      "gold": "44",
+      "notes": "Distinct PersonID with PositionID 54, KnessetNum=25, FactionName starting 'הליכוד'."
+    }
+  ]
+}

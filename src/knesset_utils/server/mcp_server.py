@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from knesset_utils.server.config import ServerConfig
+from knesset_utils.server.guide import INSTRUCTIONS
 from knesset_utils.server.tools import register_tools
 
 DEFAULT_DB_PATH = Path("data/knesset_mirror.sqlite")
@@ -45,7 +46,7 @@ def _register_health_route(mcp: MCPServer, db_path: Path) -> None:
 
 def build_server(db_path: Path = DEFAULT_DB_PATH) -> MCPServer:
     """Plain stdio-ready server: tools + health route, no auth."""
-    mcp = MCPServer("knesset-utils")
+    mcp = MCPServer("knesset-utils", instructions=INSTRUCTIONS)
     register_tools(mcp, db_path)
     _register_health_route(mcp, db_path)
     return mcp
@@ -67,6 +68,7 @@ def _build_http_server(cfg: ServerConfig) -> MCPServer:
 
     mcp = MCPServer(
         "knesset-utils",
+        instructions=INSTRUCTIONS,
         token_verifier=StaticTokenVerifier(cfg.auth_token),
         auth=AuthSettings(issuer_url=cfg.public_url, resource_server_url=cfg.public_url),
     )
