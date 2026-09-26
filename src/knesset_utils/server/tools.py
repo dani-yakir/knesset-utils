@@ -26,6 +26,17 @@ _ORIGINAL_LAW_BINDING = 6012  # KNS_LawBinding.BindingType 'החוק המקור�
 
 VOTE_URL = "https://main.knesset.gov.il/Activity/plenum/Votes/Pages/vote.aspx?voteId={}"
 BILL_URL = "https://main.knesset.gov.il/apps/legislation/main/bills/{}"
+LAW_URL = "https://main.knesset.gov.il/apps/legislation/main/laws/{}"
+
+
+def _enacted_law(conn: sqlite3.Connection, bill_id: int) -> dict:
+    """The law (KNS_IsraelLaw) a bill originally enacted, as link fields; nulls if none."""
+    row = conn.execute(
+        "SELECT l.Id FROM KNS_LawBinding lb JOIN KNS_IsraelLaw l ON l.Id = lb.IsraelLawID "
+        "WHERE lb.LawID = ? AND lb.BindingType = ? ORDER BY l.Id LIMIT 1",
+        (bill_id, _ORIGINAL_LAW_BINDING),
+    ).fetchone()
+    return {"law_id": row[0] if row else None, "law_url": LAW_URL.format(row[0]) if row else None}
 
 
 def _as_list(ids: int | list[int] | None) -> list[int]:
@@ -285,13 +296,13 @@ def register_tools(mcp: MCPServer, db_path: Path) -> None:
         """Official knesset.gov.il page for one or more plenum votes (KNS_PlenumVote Id).
 
         Include these links whenever an answer cites a vote. Each result also carries the
-        vote's date, title and meaning, and, when the vote was on a bill, that bill's page.
+        vote's date, title and meaning; when the vote was on a bill, that bill's page; and when
+        the bill enacted a law, the law's page.
         """
-        ids = _as_list(vote_ids)
         conn = _ro_connect(db_path)
         try:
             result = []
-            for vid in ids:
+            for vid in _as_list(vote_ids):
                 row = conn.execute(
                     "SELECT v.VoteDateTime, v.VoteTitle, v.VoteSubject, v.ForOptionDesc, b.Id "
                     "FROM KNS_PlenumVote v LEFT JOIN KNS_Bill b ON b.Id = v.ItemID WHERE v.Id = ?",
@@ -304,48 +315,59 @@ def register_tools(mcp: MCPServer, db_path: Path) -> None:
                     date, title, subject, for_option, bill_id = row
                     link.update(date=date, title=title, subject=subject, for_option=for_option,
                                 bill_id=bill_id, bill_url=BILL_URL.format(bill_id) if bill_id else None)
+                    if bill_id:
+                        link.update(_enacted_law(conn, bill_id))
                 result.append(link)
             return result
         finally:
             conn.close()
 
     @mcp.tool()
-    def get_bill_official_link(
-        bill_ids: int | list[int] | None = None, israel_law_ids: int | list[int] | None = None
-    ) -> list[dict]:
-        """Official knesset.gov.il legislation page for bills (KNS_Bill Id) or laws (KNS_IsraelLaw Id).
+    def get_bill_official_link(bill_ids: int | list[int]) -> list[dict]:
+        """Official knesset.gov.il legislation page for one or more bills (KNS_Bill Id).
 
-        Include these links whenever an answer cites a bill or a law. A law (KNS_IsraelLaw)
-        is linked through the bill that originally enacted it; a law with no such bill in the
-        mirror (mostly pre-state or very old laws) gets url null.
+        Include these links whenever an answer cites a bill. When the bill enacted a law
+        (KNS_IsraelLaw), the law's page is included too.
         """
-        bills, laws = _as_list(bill_ids), _as_list(israel_law_ids)
-        if not bills and not laws:
-            raise ToolError("Pass bill_ids and/or israel_law_ids.")
         conn = _ro_connect(db_path)
         try:
             result = []
-            for bid in bills:
+            for bid in _as_list(bill_ids):
                 row = conn.execute("SELECT Name, KnessetNum FROM KNS_Bill WHERE Id = ?", (bid,)).fetchone()
                 link = {"bill_id": bid, "url": BILL_URL.format(bid)}
                 if row is None:
                     link["found_in_mirror"] = False
                 else:
-                    link.update(name=row[0], knesset_num=row[1])
+                    link.update(name=row[0], knesset_num=row[1], **_enacted_law(conn, bid))
                 result.append(link)
-            for lid in laws:
+            return result
+        finally:
+            conn.close()
+
+    @mcp.tool()
+    def get_law_official_link(law_ids: int | list[int]) -> list[dict]:
+        """Official knesset.gov.il page for one or more laws of Israel (KNS_IsraelLaw Id).
+
+        Include these links whenever an answer cites a law. Each result also carries the
+        law's name and, when it is in the mirror, the bill that originally enacted it and
+        that bill's page (whose ItemID links it to its plenum votes).
+        """
+        conn = _ro_connect(db_path)
+        try:
+            result = []
+            for lid in _as_list(law_ids):
                 law = conn.execute("SELECT Name FROM KNS_IsraelLaw WHERE Id = ?", (lid,)).fetchone()
-                bill = conn.execute(
-                    "SELECT b.Id, b.Name, b.KnessetNum FROM KNS_LawBinding lb JOIN KNS_Bill b ON b.Id = lb.LawID "
-                    "WHERE lb.IsraelLawID = ? AND lb.BindingType = ? ORDER BY b.Id LIMIT 1",
-                    (lid, _ORIGINAL_LAW_BINDING),
-                ).fetchone()
-                link = {"israel_law_id": lid, "law_name": law[0] if law else None,
-                        "bill_id": None, "url": None}
+                link = {"law_id": lid, "url": LAW_URL.format(lid)}
                 if law is None:
                     link["found_in_mirror"] = False
-                if bill:
-                    link.update(bill_id=bill[0], name=bill[1], knesset_num=bill[2], url=BILL_URL.format(bill[0]))
+                else:
+                    bill = conn.execute(
+                        "SELECT b.Id FROM KNS_LawBinding lb JOIN KNS_Bill b ON b.Id = lb.LawID "
+                        "WHERE lb.IsraelLawID = ? AND lb.BindingType = ? ORDER BY b.Id LIMIT 1",
+                        (lid, _ORIGINAL_LAW_BINDING),
+                    ).fetchone()
+                    link.update(name=law[0], enacting_bill_id=bill[0] if bill else None,
+                                enacting_bill_url=BILL_URL.format(bill[0]) if bill else None)
                 result.append(link)
             return result
         finally:

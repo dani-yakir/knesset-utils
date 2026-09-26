@@ -131,21 +131,28 @@ def _call(mcp, name, args):
     return asyncio.run(mcp.call_tool(name, args)).structured_content["result"]
 
 
-def test_vote_link_includes_bill_link(tmp_path):
+def test_vote_link_includes_bill_and_law_links(tmp_path):
     mcp = _links_db(tmp_path)
     [vote, other, missing] = _call(mcp, "get_vote_official_link", {"vote_ids": [46248, 1, 5]})
     assert vote["url"] == "https://main.knesset.gov.il/Activity/plenum/Votes/Pages/vote.aspx?voteId=46248"
     assert vote["bill_url"] == "https://main.knesset.gov.il/apps/legislation/main/bills/2198907"
+    assert vote["law_url"] == "https://main.knesset.gov.il/apps/legislation/main/laws/2245265"
     assert other["bill_id"] is None and other["bill_url"] is None  # ItemID is not a bill
+    assert "law_url" not in other
     assert missing == {"vote_id": 5, "url": missing["url"], "found_in_mirror": False}
 
 
-def test_bill_link_accepts_bills_and_laws(tmp_path):
+def test_bill_link_includes_enacted_law(tmp_path):
     mcp = _links_db(tmp_path)
-    assert _call(mcp, "get_vote_official_link", {"vote_ids": 46248})[0]["vote_id"] == 46248
-    bill, law, unlinked = _call(
-        mcp, "get_bill_official_link", {"bill_ids": 2198907, "israel_law_ids": [2245265, 7]}
-    )
+    [bill] = _call(mcp, "get_bill_official_link", {"bill_ids": 2198907})
     assert bill["url"] == "https://main.knesset.gov.il/apps/legislation/main/bills/2198907"
-    assert law["bill_id"] == 2198907 and law["url"] == bill["url"]
-    assert unlinked["url"] is None  # only an amending binding, no original bill
+    assert bill["law_id"] == 2245265  # the amending binding to law 7 is not "enacted"
+
+
+def test_law_link_includes_enacting_bill(tmp_path):
+    mcp = _links_db(tmp_path)
+    law, amended_only, missing = _call(mcp, "get_law_official_link", {"law_ids": [2245265, 7, 8]})
+    assert law["url"] == "https://main.knesset.gov.il/apps/legislation/main/laws/2245265"
+    assert law["enacting_bill_id"] == 2198907
+    assert amended_only["url"].endswith("/laws/7") and amended_only["enacting_bill_id"] is None
+    assert missing["found_in_mirror"] is False

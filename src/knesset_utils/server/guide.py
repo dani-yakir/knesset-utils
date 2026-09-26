@@ -37,8 +37,8 @@ Core model:
   are the KNS_PlenumVote rows with ItemID = the bill's Id.
 
 Citing sources: whenever an answer refers to specific plenum votes, bills or laws, call
-get_vote_official_link / get_bill_official_link (they take lists of ids) and include the
-official knesset.gov.il URLs in the answer.
+get_vote_official_link / get_bill_official_link / get_law_official_link (they take lists of
+ids) and include the official knesset.gov.il URLs in the answer.
 """
 
 TABLE_DESCRIPTIONS: dict[str, str] = {
