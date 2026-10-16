@@ -1,7 +1,7 @@
 # MCP server image (Streamable HTTP). Built and run by Render from `render.yaml`.
 # The ~730 MB SQLite mirror is NOT baked in -- it is downloaded at boot from a
 # GitHub Release (see src/knesset_utils/server/mirror.py) onto the /data volume.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
