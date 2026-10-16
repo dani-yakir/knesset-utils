@@ -235,7 +235,7 @@ def status(
     """Show per-table sync state.
 
     With --check-complete, say whether this mirror is a finished one: every table
-    in the schema snapshot crawled and no chunk left unfetched. regenerate.yml
+    in the schema snapshot crawled and no chunk left unfetched. deploy/regenerate.sh
     uses it to decide whether a rebuild can be published or has to continue.
     """
     entities = schema_metadata.load_snapshot()

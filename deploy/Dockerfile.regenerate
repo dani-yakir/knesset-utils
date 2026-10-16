@@ -1,0 +1,35 @@
+# Mirror-regeneration image, run daily by the CronJob in deploy/k8s/.
+# Built and pushed to ghcr.io by .github/workflows/regenerate-image.yml.
+# Build context is the repo root: docker build -f deploy/Dockerfile.regenerate .
+FROM python:3.14-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# zstd compresses the mirror; gh publishes it (GitHub's official apt repo).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl zstd \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends gh \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY src ./src
+RUN pip install .
+COPY deploy/regenerate.sh /usr/local/bin/regenerate
+RUN chmod 0755 /usr/local/bin/regenerate
+
+# Non-root. /work is the persistent volume holding the in-progress rebuild.
+RUN useradd --create-home --uid 10001 regen \
+ && mkdir -p /work && chown regen:regen /work
+USER regen
+WORKDIR /work
+
+CMD ["regenerate"]
