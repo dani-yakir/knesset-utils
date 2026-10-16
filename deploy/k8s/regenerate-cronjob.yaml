@@ -1,0 +1,101 @@
+# Daily mirror regeneration on the homelab K3S cluster (namespace `dani`).
+#
+# The Knesset API geo-blocks non-Israeli IPs (since 2026-10-06), so the crawl
+# can no longer run on GitHub-hosted runners; this cluster's egress is Israeli.
+# The job runs deploy/regenerate.sh and publishes the finished mirror to the
+# `latest` GitHub release, which the Render MCP server downloads.
+#
+# Before the first apply, create the GitHub token secret (never commit it):
+#   kubectl create secret generic knesset-regen-github -n dani \
+#     --from-literal=GH_TOKEN=<fine-grained PAT, Contents: read & write on knesset-utils>
+#   # optional, to make Render pick the mirror up immediately:
+#   #   --from-literal=RENDER_DEPLOY_HOOK=<url>
+#
+# Apply / run once by hand / follow:
+#   kubectl apply -f deploy/k8s/regenerate-cronjob.yaml
+#   kubectl create job -n dani --from=cronjob/knesset-regenerate knesset-regenerate-manual
+#   kubectl logs -n dani -f job/knesset-regenerate-manual
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knesset-regenerate-work
+  namespace: dani
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 3Gi   # ~800 MB db + ~100 MB compressed asset, with headroom
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: knesset-regenerate
+  namespace: dani
+spec:
+  schedule: "17 4 * * *"
+  timeZone: Asia/Jerusalem
+  concurrencyPolicy: Forbid
+  # The homelab is sometimes off at 04:17; start the missed run once it is back.
+  startingDeadlineSeconds: 43200
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # Covers the first minutes after a reboot, when cluster DNS (and so image
+      # pulls and the crawl itself) is not up yet.
+      backoffLimit: 2
+      activeDeadlineSeconds: 21600   # 6h hard stop; RUNTIME_MIN stops the crawl cleanly first
+      ttlSecondsAfterFinished: 604800
+      template:
+        metadata:
+          labels:
+            app: knesset-regenerate
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+          containers:
+            - name: regenerate
+              image: ghcr.io/dani-yakir/knesset-utils-regenerate:main
+              imagePullPolicy: Always
+              env:
+                - name: REPO
+                  value: dani-yakir/knesset-utils
+                - name: WORK_DIR
+                  value: /work
+                - name: WORKERS
+                  value: "8"
+                - name: MAX_RATE
+                  value: "5"          # an Israeli IP held ~6 req/s; halved automatically on a block
+                - name: RUNTIME_MIN
+                  value: "300"        # unfinished rebuilds continue from /work on the next run
+                - name: ZSTD_LONG
+                  value: "27"         # must equal MIRROR_ZSTD_LONG in render.yaml
+                - name: ZSTD_THREADS
+                  value: "1"          # -19 --long=27 per thread is several hundred MB
+                - name: HOME
+                  value: /tmp
+              envFrom:
+                - secretRef:
+                    name: knesset-regen-github
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512Mi
+                limits:
+                  cpu: 700m
+                  memory: 1536Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: work
+              persistentVolumeClaim:
+                claimName: knesset-regenerate-work
+            - name: tmp
+              emptyDir: {}

@@ -47,19 +47,35 @@ python -m knesset_utils.server.mcp_server
 ## Deployment
 
 The MCP server is deployed as a Docker web service on **Render** (`render.yaml`); the mirror is
-**rebuilt from scratch** by a scheduled **GitHub Actions** workflow
-(`.github/workflows/regenerate.yml`), not a long-running server. The two are decoupled through
+**rebuilt from scratch** by a daily **Kubernetes CronJob** on a homelab K3S cluster
+(`deploy/k8s/regenerate-cronjob.yaml`), not a long-running server. The two are decoupled through
 **GitHub Releases**: a moving `latest` release holds the current `knesset_mirror.sqlite.zst`,
 and the server downloads it on boot and re-checks every 6h. Because `db/sync.py` checkpoints
-progress into the `_sync_state` and `_sync_chunks` tables *inside* the sqlite file, the release
-asset is simultaneously the distributed artifact and the crawl state store.
+progress into the `_sync_state` and `_sync_chunks` tables *inside* the sqlite file, an
+interrupted crawl continues where it stopped.
 
 There is no incremental refresh: `LastUpdatedDate` does not reliably change when the data does
-(see Design notes), so each cycle re-crawls everything. A rebuild is ~34k requests and the
-Knesset firewall paces it to hours, which is longer than a GitHub-hosted job may run, so the
-crawl takes a `--max-runtime` budget and the partial mirror is parked in a `rebuild-wip`
-prerelease that the next run continues. `latest` only moves when a rebuild is **complete**
-(`knesset-utils status --check-complete`), so what the server serves is never a half-crawl.
+(see Design notes), so each cycle re-crawls everything (~34k requests, ~2h at 5 req/s).
+`latest` only moves when a rebuild is **complete** (`knesset-utils status --check-complete`),
+so what the server serves is never a half-crawl. After publishing, the job deletes its database
+so the next cycle starts empty.
+
+### Why a homelab cluster, not GitHub Actions
+
+Since 2026-10-06 the Knesset site **geo-blocks non-Israeli IPs**: every request from a
+GitHub-hosted runner gets `303 See Other` to `https://www.knesset.gov.il/maintenance-page-geo`,
+whatever the User-Agent or request rate. The cluster's egress is Israeli. One cycle is
+`deploy/regenerate.sh`, packaged by `deploy/Dockerfile.regenerate` and pushed to
+`ghcr.io/dani-yakir/knesset-utils-regenerate:main` by `.github/workflows/regenerate-image.yml`
+on every relevant merge to `main` (the CronJob pulls `:main` each run). The in-progress
+database lives on a `local-path` PVC, and the job publishes with a fine-grained GitHub token
+(Contents: read & write on this repo) from the `knesset-regen-github` Secret. Setup and manual
+runs are in the header of the manifest.
+
+`.github/workflows/regenerate.yml` runs the same script as a **manual-only fallback**, in case
+the geo-block lifts while the cluster is down. A runner's disk does not survive the job, and a
+rebuild at a runner's ~2 req/s outlasts one, so in that mode the partial mirror is parked in a
+`rebuild-wip` prerelease (`WIP_TAG`) that the next run continues.
 
 ### Server configuration (env vars)
 
@@ -74,7 +90,7 @@ behaves exactly as before: stdio, `data/knesset_mirror.sqlite`, no auth.
 | `MCP_AUTH_TOKEN` | shared secret required as `Authorization: Bearer <token>` on `/mcp` |
 | `MCP_PUBLIC_URL` | public base URL (used by `MCP_NATIVE_AUTH`, the opt-in OAuth-style path) |
 | `MIRROR_REPO` | `owner/repo` holding the mirror releases; unset disables all fetching |
-| `MIRROR_ZSTD_LONG` | must equal `zstd --long=NN` in `regenerate.yml` (currently `27`) |
+| `MIRROR_ZSTD_LONG` | must equal `ZSTD_LONG` in `deploy/k8s/regenerate-cronjob.yaml` (currently `27`) |
 | `MIRROR_REFRESH_INTERVAL_SECONDS` | background re-check cadence; `0` disables |
 
 `GET /healthz` is unauthenticated and reports `db_exists` + `last_synced_at`.
@@ -121,7 +137,7 @@ gh release create mirror-$(date -u +%F) knesset_mirror.sqlite.zst --title "mirro
 
 ### Schema drift is not handled in the cloud (by design)
 
-`regenerate.yml` never runs `schema-refresh`, so new/renamed upstream columns are ignored until
+`deploy/regenerate.sh` never runs `schema-refresh`, so new/renamed upstream columns are ignored until
 someone runs `knesset-utils schema-refresh` locally and commits the updated
 `src/knesset_utils/schema/snapshot.json`. Adding a table stays a deliberate PR, not something a
 nightly run does silently -- but once merged, the next rebuild that starts from an empty

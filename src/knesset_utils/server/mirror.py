@@ -1,7 +1,7 @@
 """Fetch the current SQLite mirror from a GitHub Release and swap it into place.
 
-The rebuild job (`.github/workflows/regenerate.yml`) publishes each finished mirror as a
-zstd-compressed asset on a moving `latest` release. The HTTP server calls
+The rebuild job (`deploy/regenerate.sh`, run by the homelab CronJob) publishes
+each finished mirror as a zstd-compressed asset on a moving `latest` release. The HTTP server calls
 `ensure_mirror()` on boot and, optionally, from a background thread, to keep its
 local copy current.
 

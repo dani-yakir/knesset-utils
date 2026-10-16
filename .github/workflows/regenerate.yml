@@ -15,10 +15,14 @@ name: regenerate-mirror
 # sqlite file (_sync_chunks); the partial rebuild is parked in the `rebuild-wip`
 # release and the next run continues it. `latest` -- what the MCP server serves --
 # only moves when a rebuild is finished, so it is always a complete mirror.
+#
+# MANUAL FALLBACK ONLY. Since 2026-10-06 the Knesset API geo-blocks non-Israeli
+# IPs (303 -> maintenance-page-geo), which includes GitHub-hosted runners. The
+# daily rebuild now runs as a CronJob on the homelab cluster
+# (deploy/k8s/regenerate-cronjob.yaml). Both run deploy/regenerate.sh; this one
+# is only useful again if the geo-block lifts and the cluster is down for long.
 
 on:
-  schedule:
-    - cron: "17 3 * * *"   # 03:17 UTC daily; a rebuild spans one or two runs
   workflow_dispatch:
 
 concurrency:
@@ -34,13 +38,13 @@ jobs:
     timeout-minutes: 330
     env:
       GH_TOKEN: ${{ github.token }}
-      ASSET: knesset_mirror.sqlite.zst
-      DB: knesset_mirror.sqlite
-      WIP_TAG: rebuild-wip
+      REPO: ${{ github.repository }}
+      WIP_TAG: rebuild-wip  # a runner's disk does not survive the job; park partials here
       ZSTD_LONG: "27"        # must equal MIRROR_ZSTD_LONG in render.yaml
       WORKERS: "8"
       MAX_RATE: "2"          # requests/s; halved automatically on a firewall block
       RUNTIME_MIN: "270"     # leaves room under timeout-minutes for compress + upload
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,89 +58,13 @@ jobs:
       - name: Ensure zstd
         run: zstd --version || (sudo apt-get update && sudo apt-get install -y zstd)
 
-      - name: Continue an unfinished rebuild, or start a new one
-        run: |
-          if gh release download "$WIP_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$ASSET" --dir .; then
-            zstd -d --long=$ZSTD_LONG "$ASSET" -o "$DB"
-            rm -f "$ASSET"
-            echo "continuing the rebuild parked in $WIP_TAG"
-          else
-            echo "no rebuild in progress -- starting from an empty database"
-          fi
-
-      - name: Crawl (time-budgeted; continues next run if unfinished)
-        id: crawl
-        continue-on-error: true
-        run: |
-          knesset-utils sync --db "$DB" --log sync.log \
-            --workers "$WORKERS" --max-rate "$MAX_RATE" --max-runtime "$RUNTIME_MIN"
-
-      - name: Is the rebuild complete?
-        id: check
-        run: |
-          if knesset-utils status --db "$DB" --check-complete; then
-            echo "complete=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "complete=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: FK integrity report (non-blocking)
-        if: steps.check.outputs.complete == 'true'
-        continue-on-error: true
-        run: knesset-utils validate-fks --db "$DB" | tee fk_report.txt
-
-      - name: Compress
-        run: |
-          rm -f "$ASSET"
-          zstd -19 --long=$ZSTD_LONG -T0 "$DB" -o "$ASSET"
-          ls -la "$ASSET"
-
-      - name: Publish the finished mirror (move 'latest' + keep a dated release)
-        if: steps.check.outputs.complete == 'true'
-        run: |
-          DATE=$(date -u +%Y-%m-%d)
-          NOTES="full rebuild $(date -u +%FT%TZ)"
-          gh release view latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create latest --repo "$GITHUB_REPOSITORY" --title "latest mirror" --notes "moving pointer"
-          gh release upload latest "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit   latest --repo "$GITHUB_REPOSITORY" --notes "$NOTES"
-          gh release create "mirror-$DATE" "$ASSET" --repo "$GITHUB_REPOSITORY" --title "mirror $DATE" --notes "$NOTES" \
-            || gh release upload "mirror-$DATE" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
-          gh release delete "$WIP_TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
-
-      - name: Park the unfinished rebuild for the next run
-        if: steps.check.outputs.complete != 'true'
-        run: |
-          gh release view "$WIP_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$WIP_TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
-                 --title "rebuild in progress" --notes "partial mirror -- not for use"
-          gh release upload "$WIP_TAG" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit   "$WIP_TAG" --repo "$GITHUB_REPOSITORY" \
-            --notes "partial rebuild $(date -u +%FT%TZ); continues on the next run"
+      - name: Regenerate (crawl; publish if complete, else park in rebuild-wip)
+        run: bash deploy/regenerate.sh
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: regenerate-logs-${{ github.run_id }}
-          path: |
-            sync.log
-            fk_report.txt
+          path: sync.log
           if-no-files-found: warn
-
-      - name: Nudge Render to pick up the new mirror (optional)
-        if: ${{ steps.check.outputs.complete == 'true' }}
-        env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
-        run: |
-          if [ -n "$RENDER_DEPLOY_HOOK" ]; then
-            curl -fsS -X POST "$RENDER_DEPLOY_HOOK" && echo "deploy hook triggered"
-          else
-            echo "RENDER_DEPLOY_HOOK not set; the server's 6h refresh thread will pick it up"
-          fi
-
-      - name: Flag a crawl that exited non-zero
-        if: ${{ steps.crawl.outcome == 'failure' }}
-        run: |
-          echo "::error::crawl exited non-zero; its tables keep their chunk checkpoints and are retried next run"
-          exit 1
