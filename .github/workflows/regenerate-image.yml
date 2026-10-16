@@ -3,6 +3,7 @@ name: regenerate-image
 # Builds the mirror-regeneration image the homelab CronJob runs
 # (deploy/k8s/regenerate-cronjob.yaml) and pushes it to ghcr.io.
 # The CronJob pulls the `main` tag on every run, so merging is deploying.
+# Pull requests only build it, so a broken image is caught before merge.
 
 on:
   push:
@@ -13,10 +14,17 @@ on:
       - deploy/regenerate.sh
       - deploy/Dockerfile.regenerate
       - .github/workflows/regenerate-image.yml
+  pull_request:
+    paths:
+      - src/**
+      - pyproject.toml
+      - deploy/regenerate.sh
+      - deploy/Dockerfile.regenerate
+      - .github/workflows/regenerate-image.yml
   workflow_dispatch:
 
 concurrency:
-  group: regenerate-image
+  group: regenerate-image-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -32,6 +40,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -41,7 +50,7 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile.regenerate
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: |
             ghcr.io/${{ github.repository_owner }}/knesset-utils-regenerate:main
             ghcr.io/${{ github.repository_owner }}/knesset-utils-regenerate:${{ github.sha }}
