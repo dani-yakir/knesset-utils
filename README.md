@@ -1,236 +1,180 @@
 # knesset-utils
 
 Mirrors the Israeli Knesset's v4 OData API (`https://knesset.gov.il/OdataV4/ParliamentInfo/`)
-into a local SQLite database, and serves statistical analyses over that mirror via an MCP server.
+into a SQLite database and serves it to LLM agents through an MCP server.
 
-The live OData API is row-capped (100/page) and slow for ad-hoc filtering/counting on large
-tables, so this project does the expensive work once (a sync) and serves everything else from
-the local SQLite copy.
+The live API returns at most 100 rows per request and is slow to filter or count, so the
+mirror is crawled once a day and every query runs against the local copy.
 
-## Setup
-
-```
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e ".[dev]"
-```
-
-## Usage
+## How it fits together
 
 ```
-# Fetch live $metadata and write/refresh the committed schema snapshot
-knesset-utils schema-refresh
-
-# Sync one or more tables (omit --table to sync everything in the snapshot)
-knesset-utils sync --table KNS_Faction --table KNS_Committee
-
-# Check per-table sync freshness
-knesset-utils status
-
-# More concurrency. The Knesset firewall, not the server, sets the pace: it blocks an IP
-# for ~2 min past roughly 1,000 requests per 2 min, so --max-rate caps requests/s and is
-# halved automatically on each block. Defaults: 4 workers, 3 req/s.
-knesset-utils sync --workers 32 --max-rate 6
-
-# Build a full seed mirror from scratch (schema-refresh + sync everything).
-# ~1.5h on an empty database (~34k requests at ~6 req/s; 14h when it ran sequentially);
-# re-running against an existing mirror is an incremental catch-up instead.
-knesset-utils seed
-
-# Check foreign-key integrity in the local mirror (see docs/fk_integrity.md)
-knesset-utils validate-fks
-
-# Run the MCP server (stdio transport)
-python -m knesset_utils.server.mcp_server
+homelab K3S CronJob (daily, Israeli IP)          GitHub Releases              Render
+  deploy/regenerate.sh                     -->   `latest` release      -->   MCP server
+  crawl all 45 tables from scratch               knesset_mirror.sqlite.zst   (downloads on boot
+  publish only when complete                     + dated `mirror-YYYY-MM-DD`  and every 6h)
 ```
 
-## Deployment
+- **Regeneration** runs on Alon's homelab K3S cluster, because the Knesset API only answers
+  Israeli IPs. Each cycle rebuilds the whole mirror from an empty database, about 34k requests
+  or ~2h. It publishes only once `knesset-utils status --check-complete` passes, so the server
+  never gets a partial crawl.
+- **Serving** is a Docker web service on Render (`render.yaml`). It downloads the `latest`
+  release asset to its persistent disk, swaps it in atomically, and re-checks every 6h.
+  `GET /healthz` reports which mirror it is serving (`last_synced_at`).
+- **Clients** (Claude Code, n8n, ...) connect over Streamable HTTP with a bearer token.
 
-The MCP server is deployed as a Docker web service on **Render** (`render.yaml`); the mirror is
-**rebuilt from scratch** by a daily **Kubernetes CronJob** on a homelab K3S cluster
-(`deploy/k8s/regenerate-cronjob.yaml`), not a long-running server. The two are decoupled through
-**GitHub Releases**: a moving `latest` release holds the current `knesset_mirror.sqlite.zst`,
-and the server downloads it on boot and re-checks every 6h. Because `db/sync.py` checkpoints
-progress into the `_sync_state` and `_sync_chunks` tables *inside* the sqlite file, an
-interrupted crawl continues where it stopped.
+## MCP tools
 
-There is no incremental refresh: `LastUpdatedDate` does not reliably change when the data does
-(see Design notes), so each cycle re-crawls everything (~34k requests, ~2h at 5 req/s).
-`latest` only moves when a rebuild is **complete** (`knesset-utils status --check-complete`),
-so what the server serves is never a half-crawl. After publishing, the job deletes its database
-so the next cycle starts empty.
-
-### Why a homelab cluster, not GitHub Actions
-
-Since 2026-10-06 the Knesset site **geo-blocks non-Israeli IPs**: every request from a
-GitHub-hosted runner gets `303 See Other` to `https://www.knesset.gov.il/maintenance-page-geo`,
-whatever the User-Agent or request rate. The cluster's egress is Israeli. One cycle is
-`deploy/regenerate.sh`, packaged by `deploy/Dockerfile.regenerate` and pushed to
-`ghcr.io/dani-yakir/knesset-utils-regenerate:main` by `.github/workflows/regenerate-image.yml`
-on every relevant merge to `main` (the CronJob pulls `:main` each run). The in-progress
-database lives on a `local-path` PVC, and the job publishes with a fine-grained GitHub token
-(Contents: read & write on this repo) from the `knesset-regen-github` Secret. Setup and manual
-runs are in the header of the manifest.
-
-`.github/workflows/regenerate.yml` runs the same script as a **manual-only fallback**, in case
-the geo-block lifts while the cluster is down. A runner's disk does not survive the job, and a
-rebuild at a runner's ~2 req/s outlasts one, so in that mode the partial mirror is parked in a
-`rebuild-wip` prerelease (`WIP_TAG`) that the next run continues.
-
-### Server configuration (env vars)
-
-The server reads everything from the environment (see `server/config.py`). With no env set it
-behaves exactly as before: stdio, `data/knesset_mirror.sqlite`, no auth.
-
-| Var | Purpose |
+| Tool | What it does |
 |---|---|
-| `MCP_TRANSPORT` | `stdio` (default) or `streamable-http` |
-| `MCP_HOST` / `PORT` | HTTP bind; `PORT` (Render's convention) wins over `MCP_PORT` |
-| `MCP_DB_PATH` | mirror location (`/data/knesset_mirror.sqlite` in the container) |
-| `MCP_AUTH_TOKEN` | shared secret required as `Authorization: Bearer <token>` on `/mcp` |
-| `MCP_PUBLIC_URL` | public base URL (used by `MCP_NATIVE_AUTH`, the opt-in OAuth-style path) |
-| `MIRROR_REPO` | `owner/repo` holding the mirror releases; unset disables all fetching |
-| `MIRROR_ZSTD_LONG` | must equal `ZSTD_LONG` in `deploy/k8s/regenerate-cronjob.yaml` (currently `27`) |
-| `MIRROR_REFRESH_INTERVAL_SECONDS` | background re-check cadence; `0` disables |
+| `list_tables` | every table with its purpose and row count |
+| `describe_table` | columns, foreign keys, value distributions; decodes code columns to Hebrew labels |
+| `query_sql` | read-only SQL against the mirror |
+| `find_person` | name → `KNS_Person.Id` |
+| `sync_status` | per-table crawl state and `last_synced_at` |
+| `mk_vote_agreement` | how often two MKs voted the same way |
+| `vote_result_breakdown` | for/against/abstain/... tally for one plenum vote |
+| `get_vote_official_link` / `get_bill_official_link` / `get_law_official_link` | official knesset.gov.il URLs for citing |
 
-`GET /healthz` is unauthenticated and reports `db_exists` + `last_synced_at`.
+The server's own instructions (`server/guide.py`) explain the data model to the agent.
 
-### Connecting a client
+## Connecting a client
 
-**Deployed server (default).** The committed `.mcp.json` points at the Render deployment over
-Streamable HTTP and reads the bearer token from `$KNESSET_MCP_TOKEN` (so no secret is
-committed). Export it before launching Claude Code:
+**Deployed server.** The committed `.mcp.json` points at `https://knesset-mcp.onrender.com/mcp`
+and reads the token from `$KNESSET_MCP_TOKEN`:
 
 ```
-export KNESSET_MCP_TOKEN=<the MCP_AUTH_TOKEN value from Render>   # PowerShell: $env:KNESSET_MCP_TOKEN=...
+export KNESSET_MCP_TOKEN=<MCP_AUTH_TOKEN from Render>   # PowerShell: $env:KNESSET_MCP_TOKEN="..."
 ```
 
-Or register it explicitly for any MCP client:
+For other clients, send `Authorization: Bearer <token>` to the same URL:
 
 ```
 claude mcp add --transport http knesset https://knesset-mcp.onrender.com/mcp \
   --header "Authorization: Bearer $KNESSET_MCP_TOKEN"
 ```
 
-**Local server (for hacking on the tools).** Run it against your local mirror over stdio and
-add it at local scope so it does not clash with the committed remote entry:
+**Local server** (for working on the tools), over stdio against `data/knesset_mirror.sqlite`:
 
 ```
-claude mcp add --scope local knesset-local -- \
-  .venv/Scripts/python -m knesset_utils.server.mcp_server
+claude mcp add --scope local knesset-local -- .venv/Scripts/python -m knesset_utils.server.mcp_server
 ```
 
-(`.venv/bin/python` on macOS/Linux. A bare `python` picks up the system interpreter, which
-does not have the package installed.)
+Use `.venv/bin/python` on macOS/Linux. Local scope keeps it from clashing with the committed entry.
 
-### Seeding the first release (one-time, local)
-
-The cloud never runs the full seed (~34k requests: ~1.5h from a home IP, and the firewall
-holds GitHub's runner IPs to a lower rate). Build it locally, then publish the seed once:
+## Local setup and CLI
 
 ```
-knesset-utils seed                       # or reuse an existing data/knesset_mirror.sqlite
-zstd -19 --long=27 -T0 data/knesset_mirror.sqlite -o knesset_mirror.sqlite.zst
-gh release create latest        knesset_mirror.sqlite.zst --title "latest mirror"
-gh release create mirror-$(date -u +%F) knesset_mirror.sqlite.zst --title "mirror seed"
+python -m venv .venv
+.venv\Scripts\activate
+pip install -e ".[dev]"          # add ,server for the HTTP transport and mirror download
 ```
 
-### Schema drift is not handled in the cloud (by design)
+Crawling needs an Israeli IP.
 
-`deploy/regenerate.sh` never runs `schema-refresh`, so new/renamed upstream columns are ignored until
-someone runs `knesset-utils schema-refresh` locally and commits the updated
-`src/knesset_utils/schema/snapshot.json`. Adding a table stays a deliberate PR, not something a
-nightly run does silently -- but once merged, the next rebuild that starts from an empty
-database picks it up on its own (a rebuild already in flight keeps the schema it started with).
+```
+knesset-utils seed                          # schema-refresh + sync everything into data/knesset_mirror.sqlite
+knesset-utils sync --table KNS_Faction      # sync specific tables (omit --table for all)
+knesset-utils sync --workers 8 --max-rate 6 # concurrency and request-rate cap (defaults 4 / 3 req/s)
+knesset-utils status [--check-complete]     # per-table crawl state
+knesset-utils validate-fks                  # foreign-key integrity report (docs/fk_integrity.md)
+knesset-utils schema-refresh                # re-read live $metadata into schema/snapshot.json
+python -m knesset_utils.server.mcp_server   # MCP server; stdio unless MCP_TRANSPORT is set
+```
 
-## Design notes
+`sync` resumes from the checkpoints stored in the database (`_sync_state`, `_sync_chunks`).
+On a table whose first crawl is done it fetches only rows with a newer `LastUpdatedDate`.
+That misses some upstream changes (see [Data caveats](#data-caveats)), which is why the
+deployed mirror is always rebuilt from scratch.
 
-- Every v4 entity set uses a single numeric `Id` key. Sync uses **keyset pagination**
-  (`$filter=Id gt {cursor}&$orderby=Id&$top=100`, looping until a page returns fewer than 100
-  rows) rather than `$skip`/nextLink-following, which was measured to degrade badly with depth
-  on large tables (20-40s per page near the end of a 2M-row table, vs. 1-13s for keyset at
-  equivalent depth). This also makes sync resumable: progress is checkpointed per page in
-  `_sync_state`.
-- Tables with a `LastUpdatedDate` column get an incremental sync after their first full crawl
-  completes (`$filter=LastUpdatedDate gt {watermark}`). Tables without one (a handful of small
-  lookup tables) are fully replaced on every sync run instead.
-- Three entity sets listed in `$metadata`/the service document 404 on every request and are
-  permanently excluded: `KNS_DocumentQuerie`, `V_Lobbyists`, `V_LobbyistsClients`.
-- **No delete/repair detection**, confirmed empirically, not just theoretically. The OData API
-  exposes no delete feed, so incremental sync (`LastUpdatedDate gt watermark`) only ever adds or
-  updates rows — it structurally cannot notice a row that disappeared, whether that's a genuine
-  upstream deletion or local corruption, because a vanished row was never going to show up as
-  "updated." Tested directly: after the initial full mirror, we deleted one row from every table
-  and re-ran `sync`. Result — the 4 tables with **no** `LastUpdatedDate` (`KNS_ItemType`,
-  `KNS_CmtSiteCode`, `KNS_BroadcastCommitteSession`, `KNS_MkSiteCode`) self-healed, because those
-  are fully replaced every run regardless. All other tables (the incremental ones) stayed short by
-  exactly the deleted row, as expected. No reconciliation/full-reverify mode exists yet; this is
-  accepted as a known limitation rather than solved, since a real fix (a periodic full re-crawl to
-  detect drift) costs close to the original full-crawl time, dominated by `KNS_PlenumVoteResult`.
-- **`$count=true` on this API cannot be trusted as a verification oracle.** While investigating the
-  above, a few tables' row counts appeared to have dropped on their own between the initial sync
-  and ~6-17 hours later, which first looked like real upstream deletions. It wasn't: a full
-  row-by-row crawl (not `$count`) against three of those tables (`KNS_CmtSiteCode`, `KNS_PlenumVote`,
-  `KNS_DocumentAgenda`) found **zero missing and zero extra Ids** versus the local mirror — the
-  actual data matched exactly. Querying `$count=true` and doing a real paginated crawl *at the same
-  instant* on `KNS_CmtSiteCode` confirmed it directly: `$count=true` returned 720 while the crawl
-  found 718 distinct rows, simultaneously, reproducibly. Combined with `$count=true` being
-  unusually slow (10-16s cold) from the very first exploration of this API, it's very likely served
-  from a cached or estimated path that can disagree with the real data. Practical takeaway: never
-  use `$count=true` to check mirror completeness or drift — only a full paginated crawl is
-  trustworthy for that.
-- A full initial crawl of the largest table (`KNS_PlenumVoteResult`, ~1.95M rows) takes on the
-  order of hours, not minutes — confirmed: the first full mirror of all 45 tables took **14h25m**
-  end-to-end (3,362,911 rows), with `KNS_PlenumVoteResult` alone accounting for 7h. A subsequent
-  incremental resync of all 45 tables (nothing changed upstream) took **21m13s** — roughly 40x
-  faster -- but see the next bullet for why incremental refresh was dropped anyway. `knesset-utils seed`
-  runs the full pipeline (schema-refresh + sync everything) as one command — meant to be run as an
-  infrequent, standalone job, not part of every deploy. The deployment story for shipping/refreshing
-  that seed artifact itself is still an open design question.
-- **The sync engine is parallel, and the Knesset firewall is what limits it.** The server caps
-  every response at 100 rows (a bigger `$top` still returns 100 plus a `nextLink`), so a full crawl
-  is ~34k requests no matter what, and nearly all the time is spent waiting on the server (0.2–2s
-  per page vs ~18ms to write it). `db/sync.py` therefore splits each table's Id range into chunks
-  crawled by a thread pool (keyset pagination per chunk; idle workers take half of a busy worker's
-  remaining range, because Ids are heavily clustered in some tables), with one SQLite writer. The
-  server itself keeps scaling to ~85 req/s at 32–48 concurrent requests, but its firewall answers
-  HTTP **481 "access denied"** once an IP sends more than roughly 1,000 requests in ~2 minutes,
-  then blocks it for up to ~2 minutes. That applies to home IPs too (measured: 8–10 req/s blocked
-  after ~2 min, 6.4 req/s held steady), and GitHub's runner IPs get a lower budget. So requests are
-  paced by rate, not just concurrency: on a block, every request pauses for 120s, the rate halves,
-  and later increases stop at 80% of the rate that tripped it. With that, a from-scratch crawl of
-  all 45 tables took **1h34m** (2026-09-11: 3,388,474 rows, 2 blocks, no failures) instead of 14h25m.
-- **`LastUpdatedDate` is not a reliable change signal**, which is why the mirror is rebuilt
-  rather than patched. Comparing a from-scratch crawl (2026-09-11) against the incrementally
-  synced mirror published the same day: `KNS_PlenumVoteResult.MkId` differed on **631,655 rows**
-  (32%) with no timestamp change -- the live API agrees with the fresh crawl -- so an upstream
-  data fix was invisible to incremental sync. `KNS_PlmSessionItem.Id` turned out to be a dense
-  `1..N` row number that is **renumbered** when upstream rows disappear (the row published as Id
-  50558 is now 50518), which makes upsert-by-Id unsound for it. Rows deleted upstream never left
-  the mirror (191 of them). And a handful of FK columns were re-pointed with no timestamp change
-  (`KNS_DocumentAgenda`, `KNS_DocumentBill`, `KNS_Bill`). None of these can be detected by
-  filtering on `LastUpdatedDate`; only a full re-crawl sees them.
-- **Foreign keys are not reliable in the source data** — not a mirror bug, confirmed against the
-  live API directly. E.g. `KNS_PlenumVoteResult.MkId` had no corresponding `KNS_Person` row for
-  32.3% of vote rows (171 distinct MK ids) in the 2026-08 seed -- though that particular gap was
-  since fixed upstream: the 2026-09-11 from-scratch crawl has **zero** MkId orphans. `KNS_DocumentAgenda.AgendaID` is worse — 62.7% of rows point at an
-  `AgendaID` absent from `KNS_Agenda`. Some other FK-shaped columns showing "orphans" turned out to
-  be sentinel values (`KNS_Bill.CommitteeID = -1` means "unassigned," not corruption) or an
-  incomplete lookup table, not real dangling references. Full methodology, the complete per-FK
-  breakdown, and which columns were deliberately left unvalidated (ambiguous/polymorphic-looking):
-  see [`docs/fk_integrity.md`](docs/fk_integrity.md). Run `knesset-utils validate-fks` to
-  reproduce. Nothing consumes or enforces this yet — it's a read-only report; anything doing a
-  `JOIN` against the mirror (including the stats layer) needs to know an inner join can silently
-  drop a meaningful fraction of rows.
+## Deployment
+
+### Regeneration (homelab cluster)
+
+- `deploy/k8s/regenerate-cronjob.yaml`: a CronJob in namespace `dani`, daily at 04:17
+  Asia/Jerusalem. A run missed while the cluster was off starts once it is back, within 12h.
+  The manifest header has the setup and manual-run commands.
+- `deploy/regenerate.sh`: one cycle. It crawls with a 300-minute budget. If the rebuild is
+  complete, it compresses it, uploads it to `latest` and `mirror-<date>`, and deletes the
+  database so the next cycle starts empty. Otherwise the partial database stays on the
+  `knesset-regenerate-work` PVC and the next run continues it.
+- The image (`deploy/Dockerfile.regenerate`) is built by `.github/workflows/regenerate-image.yml`
+  and pushed to `ghcr.io/dani-yakir/knesset-utils-regenerate:main` on merges to `main` that
+  touch `src/`, `pyproject.toml`, `deploy/regenerate.sh` or `deploy/Dockerfile.regenerate`.
+  The CronJob pulls `:main` on every run.
+- Publishing uses a fine-grained GitHub token (Contents: read & write) from the
+  `knesset-regen-github` Secret. An optional `RENDER_DEPLOY_HOOK` in the same Secret makes
+  Render pick up the new mirror immediately instead of on its next 6h check.
+- `.github/workflows/regenerate.yml` runs the same script on a GitHub runner, manually only.
+  It is currently useless because of the geo-block. Since a runner's disk does not persist,
+  it parks partial rebuilds in a `rebuild-wip` prerelease.
+
+### Server (Render)
+
+`Dockerfile` + `render.yaml`: starter plan, Frankfurt, a 2 GB disk at `/data`. A refresh needs
+room for the old DB and the new one (~800 MB each). Temp files left by an interrupted download
+are deleted before the next one starts. Configuration is read from the environment
+(`server/config.py`):
+
+| Var | Default | Purpose |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` | `stdio` or `streamable-http` |
+| `MCP_HOST` / `PORT` / `MCP_PORT` | `0.0.0.0` (HTTP) / – / `8000` | bind address; `PORT` (Render) wins over `MCP_PORT` |
+| `MCP_DB_PATH` | `data/knesset_mirror.sqlite` | mirror location (`/data/...` in the image) |
+| `MCP_AUTH_TOKEN` | – | bearer token required on `/mcp`; `/healthz` stays open |
+| `MCP_NATIVE_AUTH` / `MCP_PUBLIC_URL` | off / – | opt-in OAuth-style auth path instead of the static bearer |
+| `MIRROR_REPO` | – | `owner/repo` holding the releases; unset disables downloading |
+| `MIRROR_RELEASE_TAG` / `MIRROR_ASSET` | `latest` / `knesset_mirror.sqlite.zst` | which release asset to serve |
+| `MIRROR_ZSTD_LONG` | `0` | must equal `ZSTD_LONG` in the CronJob (both `27`) |
+| `MIRROR_REFRESH_INTERVAL_SECONDS` | `0` (off) | background re-check cadence (`21600` on Render) |
+| `MIRROR_DOWNLOAD_ON_BOOT` | on | fetch the mirror at startup |
+| `GITHUB_TOKEN` / `GH_TOKEN` | – | only needed if the mirror repo is private |
+
+### Schema snapshot
+
+Table and column definitions come from the committed `src/knesset_utils/schema/snapshot.json`.
+They are used to create the tables, to pick which fields are stored, and for the server's
+foreign-key hints. Nothing updates the snapshot automatically: the regeneration job never
+runs `schema-refresh`, so a new upstream column or table is ignored until someone runs
+`knesset-utils schema-refresh` locally and merges the change. That rebuilds the regeneration
+image, and the next rebuild that starts from an empty database picks the change up.
+
+## Data caveats
+
+- **`LastUpdatedDate` is not a reliable change signal.** Upstream fixes have rewritten hundreds
+  of thousands of rows without touching it. `KNS_PlmSessionItem.Id` is a row number that gets
+  renumbered, and deletions are never exposed. Only a full re-crawl sees these changes.
+- **Foreign keys are unreliable in the source data.** For example, 63% of `KNS_DocumentAgenda`
+  rows point at an `AgendaID` missing from `KNS_Agenda`. Some apparent orphans are sentinels
+  (`KNS_Bill.CommitteeID = -1` means unassigned). Prefer `LEFT JOIN` when counting. Details are
+  in [`docs/fk_integrity.md`](docs/fk_integrity.md).
+- **`$count=true` cannot be trusted.** It can disagree with a real crawl at the same moment,
+  so completeness is checked by crawling, never by `$count`.
+- **Three entity sets are excluded.** `KNS_DocumentQuerie`, `V_Lobbyists` and
+  `V_LobbyistsClients` are listed in `$metadata` but return 404 on every request.
+
+## Crawl engine
+
+Every entity set has a numeric `Id` key, so `db/sync.py` uses keyset pagination
+(`Id gt {cursor}`, 100 rows per page) rather than `$skip`, which slows badly with depth. Each
+table's Id range is split into chunks that a thread pool crawls, with idle workers taking over
+half of a busy worker's remaining range and a single SQLite writer.
+
+The Knesset firewall limits the crawl rate, not the server. It answers HTTP 481 "access denied"
+once an IP exceeds roughly 1,000 requests in 2 minutes, then blocks it for up to ~2 minutes.
+Requests are therefore capped by rate (`--max-rate`). On a block, every worker pauses 120s,
+the rate halves, and later increases stop at 80% of the rate that tripped the block. The
+cluster runs at 5 req/s.
 
 ## MCP ergonomics eval
 
-`eval/` measures how easily a fresh LLM agent can answer real questions through the MCP tools.
-`eval/questions.json` holds 22 questions (themes from public Knesset FAQs/statistics) with gold
-answers computed against the frozen `data/scratch-2026-09-11.sqlite` snapshot; `eval/split.json`
-is a seeded random train/test split. Each run is a headless `claude -p` agent with every
-built-in tool disabled and only this MCP server attached (over stdio, from a chosen source tree),
-so two server versions can be A/B tested on identical data. A blind LLM judge grades the answers.
+`eval/` measures how easily a fresh LLM agent answers real questions through the MCP tools.
+`eval/questions.json` has 22 questions with gold answers computed against the frozen
+`data/scratch-2026-09-11.sqlite`, and `eval/split.json` is a seeded train/test split. Each run
+is a headless `claude -p` agent with only this MCP server attached (stdio, from a chosen source
+tree), so two server versions can be A/B tested on identical data. A blind LLM judge grades
+the answers.
 
 ```
 python eval/run_eval.py run --label A-train-1 --src <baseline-worktree>/src --split train
